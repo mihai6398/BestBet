@@ -28,6 +28,32 @@ public record SavePositionRequest(
     string? Notes);
 
 /// <summary>
+/// Body of <c>POST /api/positions/import</c> — a bet that was already placed, read off the
+/// bookmaker's slip rather than produced by an analysis here.
+/// </summary>
+/// <remarks>
+/// What a slip has is the price, the stake and the score; what it does not have is the other side of
+/// the market, so there is nothing to de-vig and no honest "fair price at entry". The match state is
+/// optional for the same reason in the other direction: with the minute, score and xG the model can
+/// say what the bet was worth when it was taken, and without them the row is only a record that the
+/// bet exists and can be tracked from here on.
+/// </remarks>
+/// <param name="Selection">The resolved side in the canonical form, e.g. "Under 2".</param>
+public record ImportPositionRequest(
+    string MatchLabel,
+    MarketKind MarketKind,
+    string MarketLabel,
+    string Selection,
+    double EntryDecimalOdds,
+    double StakeAmount,
+    int? MinutePlayed = null,
+    int? GoalsHome = null,
+    int? GoalsAway = null,
+    double? CumulativeXgHome = null,
+    double? CumulativeXgAway = null,
+    string? Notes = null);
+
+/// <summary>
 /// Body of <c>PATCH /api/positions/{id}</c>. Every field is optional: this endpoint exists so the
 /// user can come back later and correct what was taken, fill in the closing price, and record the
 /// result.
@@ -71,10 +97,12 @@ public record RepricePositionRequest(LiveMatchState LiveState, PaceSettings? Pac
 /// </remarks>
 /// <param name="OwnProbability">The model's probability that this bet wins, as of now.</param>
 /// <param name="ProbabilityPoints">Now minus at entry, in percentage points.</param>
-/// <param name="ExpectedValuePerUnit">At the price already taken — the only price that can still apply.</param>
+/// <param name="ExpectedValuePerUnit">At the price already taken — the only price that can still apply.
+/// Over the whole stake: a returned stake is a zero, not a win.</param>
 /// <param name="ExpectedValueAmount">The same, in currency, on the stake actually placed.</param>
 /// <param name="FairOddsNow">1 / probability: what a fair price would be at this moment, which is
-/// the number to compare a cash-out or a hedge against.</param>
+/// the number to compare a cash-out or a hedge against. Null once the score has decided the bet
+/// against you: a price for something that cannot happen is infinite, and infinity is not JSON.</param>
 public record RepricedPosition(
     int Id,
     string MatchLabel,
@@ -86,7 +114,7 @@ public record RepricedPosition(
     double ProbabilityPoints,
     double ExpectedValuePerUnit,
     double ExpectedValueAmount,
-    double FairOddsNow,
+    double? FairOddsNow,
     ProbabilityEstimate Estimate,
     ModelDiagnostics Model);
 

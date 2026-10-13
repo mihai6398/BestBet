@@ -5,7 +5,9 @@ import { BankrollInput } from './components/BankrollInput';
 import { BatchResultsTable } from './components/BatchResultsTable';
 import { EdgeResultCard } from './components/EdgeResultCard';
 import { LiveStatsInputForm } from './components/LiveStatsInputForm';
+import { BetSlipImportPanel } from './components/BetSlipImportPanel';
 import { OddsInputForm } from './components/OddsInputForm';
+import { OpenBetsTracker } from './components/OpenBetsTracker';
 import { PositionsLogTable } from './components/PositionsLogTable';
 import { ReferenceLinePanel } from './components/ReferenceLinePanel';
 import { QuickImportPanel } from './components/QuickImportPanel';
@@ -338,6 +340,7 @@ function App() {
 
             <main className="layout">
                 <div className="column">
+                    <BetSlipImportPanel onSaved={refreshLog} />
                     <ScreenshotImportPanel
                         onAnalyseAll={analyseAll}
                         onPickOne={(candidate) => {
@@ -415,6 +418,8 @@ function App() {
                     )}
                 </div>
             </main>
+
+            <OpenBetsTracker positions={positions} live={live} onSettle={updateOutcome} />
 
             <PositionsLogTable
                 positions={positions}

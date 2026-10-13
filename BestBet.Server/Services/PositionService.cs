@@ -2,6 +2,7 @@
 using BestBet.Contracts;
 using BestBet.Data;
 using BestBet.Data.Entities;
+using BestBet.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace BestBet.Services;
@@ -48,6 +49,95 @@ public class PositionService(BestBetDbContext db)
         db.Positions.Add(entity);
         await db.SaveChangesAsync(cancellationToken);
         return ToDto(entity);
+    }
+
+    /// <summary>
+    /// Records a bet that was placed elsewhere, so it can be tracked and settled like any other row.
+    /// </summary>
+    /// <remarks>
+    /// The entry snapshot is only as good as what the slip carried. With the minute, the score and
+    /// both xG figures the model prices the bet as it stood when it was taken; without them the model
+    /// has nothing to run on, and the row says so by taking the price's own implied probability as
+    /// its estimate — an edge of exactly zero, not an edge somebody invented. The "fair" probability
+    /// is the implied one too, because a slip shows one side of the market and there is no margin to
+    /// remove, so any edge measured against it still contains the bookmaker's margin.
+    /// </remarks>
+    public async Task<PositionDto> ImportAsync(
+        ImportPositionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!(request.EntryDecimalOdds > 1.0) || double.IsInfinity(request.EntryDecimalOdds))
+        {
+            throw new AnalysisInputException(
+                $"The price on the slip must be greater than 1.0, got {request.EntryDecimalOdds}.");
+        }
+
+        if (request.StakeAmount < 0.0 || double.IsNaN(request.StakeAmount) || double.IsInfinity(request.StakeAmount))
+        {
+            throw new AnalysisInputException($"The stake must be a non-negative number, got {request.StakeAmount}.");
+        }
+
+        // Parsed even when nothing is priced: a row whose side cannot be read back could be saved but
+        // never tracked, which is the whole reason to import it.
+        var selection = StoredSelection.Parse(request.MarketKind, request.Selection);
+
+        var implied = 1.0 / request.EntryDecimalOdds;
+        var own = implied;
+        var method = "slip-import";
+
+        var priced = request.MinutePlayed is not null
+                     && request.CumulativeXgHome is not null
+                     && request.CumulativeXgAway is not null;
+
+        if (priced)
+        {
+            var state = new LiveMatchState(
+                request.MinutePlayed!.Value,
+                request.CumulativeXgHome!.Value,
+                request.CumulativeXgAway!.Value,
+                request.GoalsHome ?? 0,
+                request.GoalsAway ?? 0,
+                IsPreMatch: false);
+
+            (own, method) = PriceAtEntry(request.MarketKind, selection, state);
+        }
+
+        var notes = request.Notes ?? (priced
+            ? "Imported from a bet slip. The fair price at entry is the price's own implied probability, " +
+              "so the edge shown still contains the bookmaker's margin."
+            : "Imported from a bet slip. No match state was given, so there is no estimate at entry.");
+
+        return await SaveAsync(new SavePositionRequest(
+            request.MatchLabel,
+            request.MarketKind,
+            request.MarketLabel,
+            request.Selection,
+            request.EntryDecimalOdds,
+            [],
+            implied,
+            own,
+            (own - implied) * 100.0,
+            method,
+            BankrollAtEntry: 0.0,
+            request.StakeAmount,
+            StakeFraction: 0.0,
+            Verdict.Marginal,
+            WasLive: request.MinutePlayed is not null,
+            request.MinutePlayed,
+            request.CumulativeXgHome,
+            request.CumulativeXgAway,
+            request.GoalsHome,
+            request.GoalsAway,
+            notes), cancellationToken);
+    }
+
+    private static (double Probability, string Method) PriceAtEntry(
+        MarketKind kind,
+        MarketSelectionSpec selection,
+        LiveMatchState state)
+    {
+        var (estimate, _) = AnalysisService.PriceLive(kind, selection, state, pace: null);
+        return (estimate.OwnProbability, "slip-import-model");
     }
 
     public async Task<IReadOnlyList<PositionDto>> ListAsync(CancellationToken cancellationToken = default)
@@ -189,8 +279,12 @@ public class PositionService(BestBetDbContext db)
             request.LiveState,
             request.Pace);
 
+        // Measured over the whole stake, so a returned stake counts as the zero it is. The estimate's
+        // own probability is conditional on no push — the right number to hold against a de-vigged
+        // price, and the wrong one here: on "Under 2" it would credit the bet with a win in every
+        // case where the stake merely comes back, and overstate the EV by 1 / (1 - P(push)).
         var expectedValuePerUnit =
-            OddsMath.ExpectedValuePerUnit(estimate.OwnProbability, entity.EntryDecimalOdds);
+            model.RawWinProbability * entity.EntryDecimalOdds + model.PushProbability - 1.0;
 
         return new RepricedPosition(
             entity.Id,
@@ -203,7 +297,7 @@ public class PositionService(BestBetDbContext db)
             (estimate.OwnProbability - entity.EntryOwnProbability) * 100.0,
             expectedValuePerUnit,
             expectedValuePerUnit * entity.StakeAmount,
-            estimate.OwnProbability > 0.0 ? 1.0 / estimate.OwnProbability : double.PositiveInfinity,
+            estimate.OwnProbability > 0.0 ? 1.0 / estimate.OwnProbability : null,
             estimate,
             model);
     }

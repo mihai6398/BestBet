@@ -157,6 +157,10 @@ export interface PredictionMarket {
     liquidity: number | null;
     endDate: string | null;
     outcomes: PredictionOutcome[];
+    /** Polymarket's own tag: "moneyline", "totals", "both_teams_to_score", "spreads". */
+    marketType: string | null;
+    /** The goal line for totals and spreads (2.5 in "O/U 2.5"). */
+    line: number | null;
 }
 
 /** What an already-placed bet is worth now. Computed on demand; never written to the row. */
@@ -173,7 +177,8 @@ export interface RepricedPosition {
     expectedValuePerUnit: number;
     expectedValueAmount: number;
     /** 1 / probability: what a fair price would be now, to judge a cash-out against. */
-    fairOddsNow: number;
+    /** Null once the score has decided the bet against you: there is no price for what cannot happen. */
+    fairOddsNow: number | null;
     estimate: ProbabilityEstimate;
     model: ModelDiagnostics;
 }
@@ -228,6 +233,27 @@ export interface UpdatePositionRequest {
     entryDecimalOdds?: number;
     entrySiblingOdds?: number[];
     stakeAmount?: number;
+}
+
+/**
+ * A bet already placed at a bookmaker, read off its slip. Everything after the stake is optional:
+ * a slip has the score and the clock but no xG, and without xG there is nothing to price the entry
+ * with — the row is then only a record that the bet exists, to be tracked from here on.
+ */
+export interface ImportPositionRequest {
+    matchLabel: string;
+    marketKind: MarketKind;
+    marketLabel: string;
+    /** Canonical form, e.g. "Under 2" — the server reads it back to re-price. */
+    selection: string;
+    entryDecimalOdds: number;
+    stakeAmount: number;
+    minutePlayed?: number;
+    goalsHome?: number;
+    goalsAway?: number;
+    cumulativeXgHome?: number;
+    cumulativeXgAway?: number;
+    notes?: string;
 }
 
 export interface Position {

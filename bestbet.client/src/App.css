@@ -855,3 +855,89 @@ th.numeric {
     margin: 0;
     font-size: 0.9rem;
 }
+
+/* --- Open bets, followed through the match ---------------------------------- */
+
+.open-bet {
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--border);
+}
+
+.open-bet:first-of-type {
+    border-top: 0;
+    padding-top: 0.3rem;
+}
+
+.open-bet-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.6rem;
+}
+
+.open-bet-settle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.7rem;
+}
+
+.open-bet-actions {
+    margin: 0.1rem 0 0.4rem;
+}
+
+.metric-hero {
+    font-size: 1.5rem;
+}
+
+.open-bet-history {
+    margin-top: 0.6rem;
+}
+
+.open-bet-history h3 {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.trend {
+    display: block;
+    width: 100%;
+    max-width: 24rem;
+    height: 2.8rem;
+    color: var(--accent, currentColor);
+}
+
+.history-list {
+    margin: 0.3rem 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.84rem;
+}
+
+.history-list li {
+    display: flex;
+    gap: 0.7rem;
+    padding: 0.12rem 0;
+}
+
+/* The score has settled a bet one way or the other. */
+.notice {
+    margin: 0.6rem 0 0;
+    padding: 0.55rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.notice-good {
+    border-color: var(--good);
+    background: var(--good-bg);
+}
+
+.notice-bad {
+    border-color: var(--bad);
+    background: var(--bad-bg);
+}

@@ -241,7 +241,7 @@ public class PositionEditingTests
 
         var now = await service.RepriceAsync(saved.Id, AtMinute(80, 1.60, 1.10, 1, 1));
 
-        Assert.Equal(1.0 / now!.OwnProbability, now.FairOddsNow, 10);
+        Assert.Equal(1.0 / now!.OwnProbability, now.FairOddsNow!.Value, 10);
     }
 
     [Fact]
