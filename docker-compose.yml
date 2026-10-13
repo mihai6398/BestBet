@@ -1,0 +1,22 @@
+services:
+  bestbet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bestbet:latest
+    container_name: bestbet
+    ports:
+      # Left side is the port on your machine — change it if 8080 is taken.
+      - "8080:8080"
+    environment:
+      # Production keeps Swagger and detailed errors off. Set this to Development if you want the
+      # Swagger UI at /swagger while poking at the API by hand.
+      ASPNETCORE_ENVIRONMENT: Production
+    volumes:
+      # The positions log. Named volume rather than a bind mount so the container's non-root user
+      # keeps the write permission it was given in the image.
+      - bestbet-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  bestbet-data:

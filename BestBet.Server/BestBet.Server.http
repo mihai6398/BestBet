@@ -1,0 +1,42 @@
+@BestBet.Server_HostAddress = http://localhost:5197
+
+### Live: total goals, the worked example from the spec
+POST {{BestBet.Server_HostAddress}}/api/analyze
+Content-Type: application/json
+
+{
+  "market": { "kind": "TotalGoals", "label": "Sub 4", "decimalOdds": 1.57, "siblingOdds": [1.66] },
+  "liveState": { "minutePlayed": 67, "cumulativeXgHome": 0.79, "cumulativeXgAway": 0.01, "currentGoalsHome": 1, "currentGoalsAway": 0, "isPreMatch": false },
+  "bankroll": 263.0,
+  "selection": "Under",
+  "line": 4
+}
+
+### Live: next goal, the acceptance case from the spec (Sunderland - Arsenal, minute 45)
+POST {{BestBet.Server_HostAddress}}/api/analyze
+Content-Type: application/json
+
+{
+  "market": { "kind": "NextGoal", "label": "Primul gol: 2", "decimalOdds": 1.60, "siblingOdds": [2.50, 8.00] },
+  "liveState": { "minutePlayed": 45, "cumulativeXgHome": 0.13, "cumulativeXgAway": 0.86, "currentGoalsHome": 0, "currentGoalsAway": 0, "isPreMatch": false },
+  "bankroll": 263.0,
+  "selection": "NextGoalAway"
+}
+
+### Pre-match: own probability supplied by hand
+POST {{BestBet.Server_HostAddress}}/api/analyze
+Content-Type: application/json
+
+{
+  "market": { "kind": "BothTeamsToScore", "label": "Da", "decimalOdds": 1.80, "siblingOdds": [1.95] },
+  "liveState": null,
+  "bankroll": 263.0,
+  "selection": "Yes",
+  "manualOwnProbability": 0.62
+}
+
+### The positions log
+GET {{BestBet.Server_HostAddress}}/api/positions
+
+### CLV scoreboard
+GET {{BestBet.Server_HostAddress}}/api/positions/summary

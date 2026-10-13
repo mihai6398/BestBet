@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SpaRoot>..\bestbet.client</SpaRoot>
+    <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
+    <SpaProxyServerUrl>https://localhost:5173</SpaProxyServerUrl>
+    <!-- Source files are UTF-8. Without this the compiler falls back to the machine's ANSI codepage
+         for any file lacking a BOM, which silently mangles the em-dashes in user-facing strings. -->
+    <CodePage>65001</CodePage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+  </ItemGroup>
+
+  <!-- Both of these exist only to tie the API to the SPA during local development: the proxy starts
+       Vite on F5, and the project reference makes Visual Studio build the client alongside the
+       server. Neither survives a container build - the esproj needs the Visual Studio JavaScript
+       SDK, which the plain .NET SDK image does not carry, and in the container the client is built
+       in its own Node stage instead. Hence -p:ContainerBuild=true in the Dockerfile. -->
+  <ItemGroup Condition="'$(ContainerBuild)' != 'true'">
+    <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
+      <Version>8.*-*</Version>
+    </PackageReference>
+    <ProjectReference Include="..\bestbet.client\bestbet.client.esproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

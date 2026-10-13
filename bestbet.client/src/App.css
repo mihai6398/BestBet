@@ -1,0 +1,857 @@
+/* Dense, form-first layout. This gets used with a match on one screen and a bookmaker on another,
+   so the priority is fitting the whole loop in view, not decoration. */
+
+.app {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 1.5rem 1.5rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.app-head h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    letter-spacing: -0.02em;
+}
+
+.tagline {
+    margin: 0.35rem 0 0;
+    color: var(--muted);
+    max-width: 62ch;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (max-width: 1000px) {
+    .layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+}
+
+/* --- Cards --------------------------------------------------------------- */
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.15rem 1.15rem;
+}
+
+.card-compact {
+    padding: 0.85rem 1.15rem;
+}
+
+.card-empty {
+    border-style: dashed;
+    background: transparent;
+}
+
+.card h2 {
+    margin: 0 0 0.75rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.card-head h2 {
+    margin: 0;
+}
+
+.card-result {
+    border-color: var(--accent-border);
+}
+
+.card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--border);
+}
+
+/* --- Fields -------------------------------------------------------------- */
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1 1 10rem;
+    min-width: 0;
+}
+
+.field > span {
+    font-size: 0.78rem;
+    color: var(--muted);
+}
+
+.field-narrow {
+    flex: 0 1 7.5rem;
+}
+
+.field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.field-row:last-child {
+    margin-bottom: 0;
+}
+
+input,
+select {
+    font: inherit;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: inherit;
+    width: 100%;
+    min-width: 0;
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.subgroup {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 0.85rem 0.85rem;
+    margin: 0.5rem 0 0;
+}
+
+.subgroup legend {
+    font-size: 0.78rem;
+    color: var(--muted);
+    padding: 0 0.35rem;
+}
+
+.toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.toggle input {
+    width: auto;
+}
+
+/* --- Buttons ------------------------------------------------------------- */
+
+button {
+    font: inherit;
+    padding: 0.5rem 0.9rem;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--input-bg);
+    color: inherit;
+    cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+    border-color: var(--accent);
+}
+
+button:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+    padding: 0.65rem 1rem;
+}
+
+.link-button {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--muted);
+    text-decoration: underline;
+    font-size: 0.8rem;
+}
+
+/* --- Result metrics ------------------------------------------------------ */
+
+.metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 0.65rem;
+    margin: 0;
+}
+
+.metric {
+    background: var(--well);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.55rem 0.7rem;
+}
+
+.metric dt {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+}
+
+.metric dd {
+    margin: 0.2rem 0 0;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.metric-sub {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.metric-good dd {
+    color: var(--good);
+}
+
+.metric-bad dd {
+    color: var(--bad);
+}
+
+.metric-stake {
+    border-color: var(--accent-border);
+}
+
+/* --- Verdict ------------------------------------------------------------- */
+
+.verdict {
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.verdict-bet {
+    background: var(--good-bg);
+    color: var(--good);
+    border-color: var(--good);
+}
+
+.verdict-marginal {
+    background: var(--warn-bg);
+    color: var(--warn);
+    border-color: var(--warn);
+}
+
+.verdict-skip {
+    background: var(--well);
+    color: var(--muted);
+    border-color: var(--border);
+}
+
+.verdict-reason {
+    margin: 0.9rem 0 0;
+    line-height: 1.55;
+}
+
+/* --- Notes, warnings, working ------------------------------------------- */
+
+.note,
+.hint {
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.note {
+    margin: 0 0 0.75rem;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.warning {
+    margin: 0.9rem 0 0;
+    padding: 0.7rem 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--warn);
+    background: var(--warn-bg);
+    font-size: 0.85rem;
+    line-height: 1.55;
+}
+
+.error {
+    margin: 0;
+    padding: 0.7rem 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--bad);
+    background: var(--bad-bg);
+    color: var(--bad);
+    font-size: 0.87rem;
+}
+
+.working {
+    margin-top: 0.9rem;
+    font-size: 0.85rem;
+}
+
+.working summary {
+    cursor: pointer;
+    color: var(--muted);
+}
+
+.working ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.15rem;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.working p {
+    margin: 0.6rem 0 0;
+    line-height: 1.55;
+}
+
+code {
+    font-size: 0.85em;
+    background: var(--well);
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+}
+
+/* --- Positions log ------------------------------------------------------- */
+
+.summary {
+    margin-bottom: 1rem;
+}
+
+.summary-readout {
+    margin: 0 0 0.75rem;
+    line-height: 1.55;
+}
+
+.metrics-compact .metric dd {
+    font-size: 1rem;
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.85rem;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+td.numeric,
+th.numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+
+.cell-sub {
+    font-size: 0.74rem;
+    color: var(--muted);
+}
+
+.cell-input {
+    padding: 0.25rem 0.4rem;
+    font-size: 0.82rem;
+    min-width: 5.5rem;
+    text-align: inherit;
+}
+
+.cell-good {
+    color: var(--good);
+}
+
+.cell-bad {
+    color: var(--bad);
+}
+
+/* --- Disclaimer ---------------------------------------------------------- */
+
+.disclaimer {
+    position: sticky;
+    bottom: 0;
+    margin-top: 0.5rem;
+    padding: 0.7rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+}
+
+/* --- Quick import -------------------------------------------------------- */
+
+.json-input {
+    font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: inherit;
+    resize: vertical;
+    tab-size: 2;
+}
+
+.json-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.link-button-strong {
+    color: var(--accent);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.link-button-strong:hover {
+    text-decoration: underline;
+}
+
+.note-tight {
+    margin: 0.25rem 0 0;
+}
+
+.error-tight {
+    margin-top: 0.75rem;
+}
+
+.card-actions-tight {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+}
+
+/* --- Pace correction ----------------------------------------------------- */
+
+.pace-panel {
+    margin-top: 0.9rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    background: var(--well);
+}
+
+.pace-head {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+.pace-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.pace-down {
+    background: var(--warn-bg);
+    color: var(--warn);
+    border-color: var(--warn);
+}
+
+.pace-up {
+    background: var(--good-bg);
+    color: var(--good);
+    border-color: var(--good);
+}
+
+.pace-panel ul {
+    margin: 0;
+    padding-left: 1.15rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--muted);
+}
+
+.pace-panel li + li {
+    margin-top: 0.3rem;
+}
+
+.toggle-block {
+    display: flex;
+    margin-bottom: 0.5rem;
+}
+
+/* --- Stats paste preview ------------------------------------------------- */
+
+.parse-preview {
+    margin-top: 0.85rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--well);
+}
+
+.parse-preview h3 {
+    margin: 0 0 0.6rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.parse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    gap: 0.5rem;
+    margin: 0 0 0.6rem;
+}
+
+.parse-field dt {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+}
+
+.parse-field dd {
+    margin: 0.15rem 0 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.parse-field-missing dd {
+    color: var(--bad);
+}
+
+/* --- Pasted market picker ------------------------------------------------ */
+
+.market-found + .market-found {
+    margin-top: 0.7rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--border);
+}
+
+.market-found-title {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+}
+
+.market-found-outcomes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.outcome-button {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    background: var(--surface);
+}
+
+.outcome-label {
+    font-size: 0.85rem;
+}
+
+.outcome-odds {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+}
+
+.paste-notes {
+    margin: 0.75rem 0 0;
+    padding-left: 1.15rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted);
+}
+
+/* --- Language switch ------------------------------------------------------ */
+
+.app-head-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.lang-switch {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.lang-switch button {
+    border: 0;
+    border-radius: 0;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+    background: var(--surface);
+    color: var(--muted);
+}
+
+.lang-switch button + button {
+    border-left: 1px solid var(--border);
+}
+
+.lang-switch .lang-active {
+    background: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+}
+
+/* --- Screenshot import ---------------------------------------------------- */
+
+.dropzone {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: var(--well);
+    padding: 0.9rem;
+    text-align: center;
+    min-height: 5.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dropzone-active {
+    border-color: var(--accent);
+    border-style: solid;
+    background: var(--good-bg);
+}
+
+.dropzone-text {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.shot-preview {
+    max-width: 100%;
+    /* Tall enough to recognise the capture, short enough not to push the controls off screen. */
+    max-height: 18rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+
+.hidden-input {
+    display: none;
+}
+
+.shot-controls {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+}
+
+.shot-buttons {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.shot-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+}
+
+.shot-progress progress {
+    flex: 0 0 8rem;
+    height: 0.5rem;
+}
+
+/* --- Picking outcomes out of a capture ------------------------------------ */
+
+.outcome-pick {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.outcome-tick {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    cursor: pointer;
+}
+
+.outcome-tick input {
+    align-self: center;
+    margin: 0;
+}
+
+.outcome-open {
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    padding: 0 0.6rem;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--muted);
+    background: var(--well);
+}
+
+.outcome-open:hover {
+    color: var(--accent);
+}
+
+.margin-odd {
+    color: var(--warn);
+}
+
+/* --- Batch results -------------------------------------------------------- */
+
+.row-best > td {
+    background: var(--good-bg);
+}
+
+/* The market name is three words that mean one thing; broken across lines it reads as three. */
+.row-market {
+    white-space: nowrap;
+}
+
+.best-flag {
+    display: block;
+    width: fit-content;
+    margin: 0.2rem 0 0;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+/* A table cell, so not flex: the row's baseline alignment matters more than the gap does. */
+.row-actions button + button {
+    margin-left: 0.7rem;
+}
+
+/* --- Reference line ------------------------------------------------------- */
+
+.reference-active {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.75rem 0;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    background: var(--good-bg);
+    font-size: 0.85rem;
+}
+
+.reference-panel {
+    margin: 0.9rem 0;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--well);
+}
+
+.reference-badge {
+    background: var(--accent);
+    color: var(--accent-text);
+}
+
+.search-button {
+    align-self: flex-end;
+    margin-bottom: 0.1rem;
+}
+
+/* --- Re-pricing an open position ------------------------------------------ */
+
+.reprice-row > td {
+    background: var(--well);
+}
+
+.reprice-panel {
+    padding: 0.4rem 0.2rem 0.6rem;
+}
+
+.reprice-panel h3 {
+    margin: 0;
+    font-size: 0.9rem;
+}

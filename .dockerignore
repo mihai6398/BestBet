@@ -1,0 +1,30 @@
+# Build output — every stage builds from source inside the image.
+**/bin
+**/obj
+**/dist
+**/dist-ssr
+**/node_modules
+**/.tmp-ssr
+
+# Local state that must never be baked into an image.
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.log
+
+# Tooling and IDE
+.vs
+.idea
+.git
+.github
+**/*.user
+.claude
+
+# Docs and files the build does not read
+README.md
+GHID_RULARE.md
+BESTBET_TASK.md
+**/CHANGELOG.md
+docker-compose.yml
+Dockerfile
+.dockerignore
