@@ -1,0 +1,17 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+dist/
+dist-ssr/
+node_modules/
+
+# Local database and logs
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# IDE
+.vs/
+.idea/
+*.user
