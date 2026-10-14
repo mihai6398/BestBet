@@ -68,7 +68,7 @@ dotnet test
 npm --prefix bestbet.client test
 ```
 
-236 server tests, including the worked examples from the specification pinned as an acceptance suite in
+245 server tests, including the worked examples from the specification pinned as an acceptance suite in
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`. Those are the definition of "the maths
 is still right" — if one of them drifts, fix that before adding anything.
 
@@ -129,6 +129,22 @@ means what was actually bet, not what the analysis suggested, and a live price m
 it and clicking it. Editing the price re-derives the fair line and the edge from it, and leaves the
 model's own probability alone: getting a worse price says nothing about what the match was doing.
 
+### Watching a match that is still being played
+
+Sofascore answers a programmatic request with 403 — every request, down to robots.txt — because
+Cloudflare rejects anything that is not a real browser. A server-side poller would therefore have to
+impersonate one, which is against their terms and breaks the first time they tighten it. So the
+reading is **pushed, not fetched**: a bookmarklet started on the tab the user already has the match
+open in reads the page as text every 20 seconds and posts it to `POST /api/live-feed`.
+
+The text is parsed by the same parser a manual paste goes through — one implementation to keep
+working rather than two that can disagree about what a redesign means. Each reading fills the live
+form and re-prices the open positions **on that match only**: the team-name check is what stops a
+saved bet being priced against another match's clock.
+
+The endpoint is guarded by a token generated per run and readable only from the app's own origin; a
+page that was not handed it gets a 401. Readings live in memory and are gone when the app stops.
+
 `POST /api/positions/{id}/reprice` re-runs the live model on an open position against the match as
 it is now, and returns the probability, the EV at the price already taken, and the fair price at
 this moment — which is what a cash-out offer has to be compared against. It writes nothing: the
@@ -140,6 +156,5 @@ confident until there are 30+ priced positions, and says so explicitly.
 
 ## Not built yet
 
-Automated live-stats ingestion and automated closing-price capture are still Phase 2 — see §8 of the
-specification. Build nothing from that list until this loop has been used on
+Automated closing-price capture is still Phase 2 — see §8 of the specification. Build nothing from that list until this loop has been used on
 real matches.

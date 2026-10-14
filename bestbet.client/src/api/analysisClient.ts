@@ -1,7 +1,7 @@
 import type {
     AnalyzeRequest,
     AnalyzeResponse,
-    ImportPositionRequest,
+    LiveFeedState,
     Position,
     PositionsSummary,
     PredictionMarket,
@@ -66,10 +66,6 @@ export const analysisClient = {
     savePosition: (payload: SavePositionRequest) =>
         request<Position>('/api/positions', { method: 'POST', body: JSON.stringify(payload) }),
 
-    /** A bet already placed at a bookmaker, brought in from its slip. */
-    importPosition: (payload: ImportPositionRequest) =>
-        request<Position>('/api/positions/import', { method: 'POST', body: JSON.stringify(payload) }),
-
     updatePosition: (id: number, payload: UpdatePositionRequest) =>
         request<Position>(`/api/positions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
@@ -89,4 +85,9 @@ export const analysisClient = {
      */
     searchPolymarket: (query: string) =>
         request<PredictionMarket[]>(`/api/reference/polymarket?q=${encodeURIComponent(query)}`),
+
+    /** The last reading pushed in from a match page, plus the token the pushing page needs. */
+    liveFeed: () => request<LiveFeedState>('/api/live-feed'),
+
+    clearLiveFeed: () => request<void>('/api/live-feed', { method: 'DELETE' }),
 };

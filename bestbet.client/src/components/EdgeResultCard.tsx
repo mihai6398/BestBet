@@ -11,9 +11,15 @@ interface Props {
     onSave: () => void;
     saving: boolean;
     saved: boolean;
+    /**
+     * The minute this result was computed at, once the match has moved past it. Only set while a
+     * monitor is running: a card that keeps looking current after the clock has moved is exactly
+     * the failure a live feed introduces, so it says so itself rather than ageing quietly.
+     */
+    overtakenAtMinute?: string | null;
 }
 
-export function EdgeResultCard({ result, onSave, saving, saved }: Props) {
+export function EdgeResultCard({ result, onSave, saving, saved, overtakenAtMinute = null }: Props) {
     const t = useT();
     const locale = useLocale();
     const { edge, stake, model, reference } = result;
@@ -86,6 +92,10 @@ export function EdgeResultCard({ result, onSave, saving, saved }: Props) {
                         {t.result.referenceOverround(percent(reference.overround - 1))}
                     </p>
                 </div>
+            )}
+
+            {overtakenAtMinute !== null && (
+                <p className="warning">{t.result.overtaken(overtakenAtMinute)}</p>
             )}
 
             <p className="verdict-reason">{result.verdictReason}</p>

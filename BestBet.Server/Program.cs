@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using BestBet.Data;
+using BestBet.Server.Controllers;
 using BestBet.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,6 +25,18 @@ builder.Services.AddDbContext<BestBetDbContext>(options => options.UseSqlite(con
 builder.Services.AddSingleton<AnalysisService>();
 builder.Services.AddScoped<PositionService>();
 
+// Holds the last reading pushed in from a match page the user has open. In memory only: it is a
+// snapshot of a match in progress, worthless ten minutes later and not worth a table.
+builder.Services.AddSingleton<LiveFeedStore>();
+
+// One CORS policy, for one endpoint: the push from a live-score page. Any origin, because the
+// pushing page is whichever provider the user is reading, and the token is what actually guards it
+// — a browser sends a simple cross-origin POST regardless of CORS, which only decides who may read
+// the reply. POST alone, so nothing else is reachable from a page this app does not control.
+builder.Services.AddCors(options => options.AddPolicy(
+    LiveFeedCors.PolicyName,
+    policy => policy.AllowAnyOrigin().WithMethods("POST").AllowAnyHeader()));
+
 // The one outbound dependency in the app. A short timeout on purpose: a reference line is a nice to
 // have, and a slow exchange must never hold up a form the user is filling in while a match runs.
 builder.Services.AddMemoryCache();
@@ -42,6 +55,24 @@ using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.GetRequiredService<BestBetDbContext>().Database.EnsureCreated();
 }
+
+// Chrome asks permission before a public page may reach a private address, and asks it as a
+// preflight carrying this header. Answering it is how the push from a provider's page is allowed to
+// reach a server on this machine; without it the browser drops the request before it is sent.
+//
+// Ahead of UseCors, not after it: the CORS middleware answers a preflight and short-circuits the
+// pipeline, so anything registered behind it never runs on the one request that needs this header.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Headers.ContainsKey("Access-Control-Request-Private-Network"))
+    {
+        context.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
+    }
+
+    await next();
+});
+
+app.UseCors();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

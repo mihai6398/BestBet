@@ -508,17 +508,89 @@ cash-out la echivalentul lui 1.40, oferta e în dezavantajul tău.
 
 ---
 
-## 7. Testele
+## 7. Monitorizare în timp real
+
+Panoul **„Monitorizare în timp real"**, primul sub importul din captură. Pariurile deschise se
+recalculează singure, la fiecare citire, cât timp meciul merge.
+
+### De ce merge printr-un semn de carte și nu direct de pe server
+
+Varianta evidentă ar fi ca serverul aplicației să întrebe Sofascore din 20 în 20 de secunde. Nu se
+poate, și nu e o chestiune de efort: **Sofascore răspunde 403 la orice cerere care nu vine dintr-un
+browser real** — inclusiv la `robots.txt`. Verificat direct de pe calculatorul tău:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://www.sofascore.com/robots.txt
+```
+
+Întoarce `403`. Ca să treacă, ar trebui ca serverul să se dea drept browser — amprentă TLS falsificată,
+browser fără interfață, proxy-uri. Asta înseamnă și încălcarea termenilor lor, și o construcție care
+se rupe definitiv prima dată când ei strâng șurubul. Nu merită și nu am făcut-o.
+
+Dar **browserul tău are deja voie** — acolo pagina e deschisă și se încarcă normal. Deci citirea vine
+de acolo: un semn de carte (bookmarklet) pornit pe fila respectivă citește textul paginii și îl
+trimite aplicației de pe calculatorul tău. Nu se cere nimic în plus de la Sofascore; se folosește ce
+browserul tău încărcase oricum.
+
+### Cum se pornește
+
+1. Deschizi panoul și **tragi butonul „BestBet: monitorizează" în bara de favorite**. (Sau apeși
+   *Copiază* și îți faci singur un favorit cu textul ăla.)
+2. Deschizi meciul pe Sofascore, mergi la **fila Statistici**, și apeși pe favoritul nou. Apare o
+   confirmare. Apeși din nou pe el ca să oprești.
+3. În aplicație bifezi **Monitorizare activă**.
+
+De aici, la fiecare 20 de secunde pleacă o citire, iar aplicația:
+
+- umple singură minutul, scorul și xG-ul din formular;
+- **recalculează singură pariurile deschise din acel meci** — panoul de recalculare apare sub fiecare
+  rând, fără să apeși nimic;
+- arată în panou cât de veche e ultima citire și ce s-a înțeles din ea.
+
+Panoul spune și **care rânduri sunt urmărite**. Un pariu dintr-alt meci nu este atins: potrivirea se
+face pe numele echipelor și cere două cuvinte comune, tocmai ca să nu primească un pariu de la alt
+meci un număr foarte sigur despre un joc care n-are nicio legătură cu el.
+
+### Ce te apără de citiri greșite
+
+| Situație | Ce face aplicația |
+|---|---|
+| Fila s-a închis sau a adormit | După 2½ minute spune „citirea e veche" și o marchează |
+| Citire fără xG (ești pe altă filă decât Statistici) | O refuză și îți spune să te întorci pe Statistici |
+| Rezultatul de sus e calculat la un minut depășit | Cardul își spune singur că a fost depășit |
+| Pariul s-a decis deja (Sub 1.5 la 1–1) | Arată 0%, EV −100%, și „nu mai există o cotă corectă" |
+
+### Ce circulă și unde
+
+Citirea merge **doar între browserul tău și aplicația de pe calculatorul tău**. Nu se salvează
+nicăieri — stă în memorie și dispare când oprești aplicația. Punctul de intrare e protejat cu un
+token generat la fiecare pornire, pe care doar interfața aplicației îl poate citi; o pagină care nu
+l-a primit primește `401`.
+
+> **În modul de dezvoltare, certificatul trebuie să fie de încredere.** Interfața rulează pe HTTPS cu
+> certificatul local, iar o cerere de pe Sofascore către un certificat în care browserul n-are
+> încredere eșuează fără mesaj. Rulează o dată `dotnet dev-certs https --trust`. În Docker nu apare
+> problema — acolo e `http://localhost:8080` și nu intervine niciun certificat.
+
+> **Dacă nu vine nicio citire:** verifică să fi apăsat semnul de carte *pe fila Sofascore* (nu în
+> aplicație), ca fila aia să fie încă deschisă, și ca portul din semn să fie cel pe care rulează
+> aplicația. Semnul se generează cu adresa aplicației pe care l-ai copiat — dacă schimbi portul,
+> ia-l din nou.
+
+---
+
+## 8. Testele
 
 ```bash
 dotnet test
 ```
 
-236 de teste, sub o secundă. Printre ele, în
+245 de teste, sub o secundă. Printre ele, în
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`, exemplele numerice din specificație —
 acelea sunt definiția lui „matematica e încă bună”. Dacă vreunul pică, se repară întâi el.
 
-Pentru client (151 de teste pe parserele de import, pe citirea capturilor și pe analiza în bloc):
+Pentru client (167 de teste pe parserele de import, pe citirea capturilor, pe analiza în bloc și pe
+monitorizare):
 
 ```bash
 npm --prefix bestbet.client test
@@ -534,7 +606,7 @@ npm --prefix bestbet.client run build
 
 ---
 
-## 8. Verificare rapidă că merge
+## 9. Verificare rapidă că merge
 
 După pornire, indiferent de mod, cazul de acceptanță din specificație (Sunderland–Arsenal, minutul 45)
 trebuie să dea exact aceste cifre:
@@ -547,7 +619,7 @@ Estimarea proprie trebuie să fie **0.5459**, EV **−0.1266**, verdictul **Skip
 
 ---
 
-## 9. Când ceva nu merge
+## 10. Când ceva nu merge
 
 **`docker compose up` se oprește cu „port is already allocated”**
 Ai deja ceva pe 8080. Schimbă portul din stânga în `docker-compose.yml` (`"9000:8080"`).

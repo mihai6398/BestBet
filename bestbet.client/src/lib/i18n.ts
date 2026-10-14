@@ -162,6 +162,9 @@ const ro = {
         evAmount: 'EV pe miza plasată',
         fairNow: 'Cotă corectă acum',
         fairNowHint: 'Cu ea compari un cash-out sau o acoperire: sub ea, oferta e în dezavantajul tău.',
+        decided:
+            'Pariul e deja decis de ce s-a întâmplat pe teren — nu mai există o cotă corectă de ' +
+            'comparat.',
         note:
             'Nu se salvează nimic. Rândul păstrează datele de la intrare, care sunt dovada că ' +
             'decizia a fost rezonabilă atunci — poți recalcula ori de câte ori se mișcă meciul.',
@@ -172,119 +175,52 @@ const ro = {
         failed: 'Poziția nu a putut fi recalculată.',
     },
 
-    slip: {
-        open: 'Importă un pariu deja plasat',
+    monitor: {
+        open: 'Monitorizează meciul în timp real ›',
         openNote:
-            'Din biletul de la casa de pariuri: cota, miza și scorul se citesc singure, iar apoi ' +
-            'îl urmărești cu datele meciului.',
-        title: 'Importă un pariu din bilet',
+            'Pariurile deschise se recalculează singure, pe măsură ce meciul merge mai departe. ' +
+            'Datele vin din fila Sofascore pe care o ai deja deschisă.',
+        title: 'Monitorizare în timp real',
         hide: 'Ascunde',
-        intro:
-            'Din aplicația casei de pariuri nu se poate copia nimic, deci biletul intră printr-o ' +
-            'captură (sau prin textul lui, dacă îl ai). Citirea se face în browser; nu pleacă ' +
-            'nimic din calculator. Verifică câmpurile de mai jos înainte să salvezi — o cifră ' +
-            'citită greșit înseamnă un pariu urmărit cu alte numere decât cele pe care ai mizat.',
-        dropHere: 'Trage aici captura biletului sau',
-        dropActive: 'Dă drumul ca să citesc biletul',
-        chooseFile: 'alege un fișier',
-        notAnImage: 'Fișierul nu este o imagine.',
-        reading: (percent: number) => `Se citește biletul… ${percent}%`,
-        loadingEngine: 'Se încarcă motorul de citire (doar prima dată)…',
-        failed: 'Biletul nu a putut fi citit din imagine.',
-        textLabel: 'Textul biletului',
-        textPlaceholder: 'Sub 2 2.75\nTotal\nAtletico Madrid 1\nManchester United 0\nSuma pariată: 2.00',
-        textNote:
-            'Aici apare ce a citit motorul de pe imagine. Îl poți corecta sau înlocui cu textul ' +
-            'biletului, apoi apeși „Citește biletul”.',
-        read: 'Citește biletul',
-        clear: 'Golește',
-        formTitle: 'Verifică pariul',
-        match: 'Meci',
-        matchPlaceholder: 'Atletico Madrid - Manchester United',
-        kind: 'Piața',
-        side: 'Partea',
-        line: 'Linia',
-        bookLabel: 'Cum scrie pe bilet',
-        odds: 'Cota',
-        stake: 'Miza',
-        minute: 'Minutul',
-        scoreHome: 'Gol gazde',
-        scoreAway: 'Gol oaspeți',
-        xgHome: 'xG gazde',
-        xgAway: 'xG oaspeți',
-        stateTitle: 'Starea meciului când ai pariat',
-        stateNote:
-            'Biletul are minutul și scorul, dar nu și xG-ul. Fără xG nu se poate calcula ce șansă ' +
-            'avea pariul la intrare — nu e o problemă: din „Pariuri deschise” introduci starea ' +
-            'actuală oricând și vezi șansa de acum.',
-        save: 'Salvează ca pariu deschis',
-        saving: 'Se salvează…',
-        saved: 'Salvat. Îl găsești mai jos, la „Pariuri deschise”.',
-        saveFailed: 'Pariul nu a putut fi salvat.',
-        issues: {
-            'no-odds': 'Nu am găsit cota. Completeaz-o tu.',
-            'no-stake': 'Nu am găsit miza. Completeaz-o tu.',
-            'no-market':
-                'Nu am recunoscut piața. Aplicația citește automat doar totalurile (Sub/Peste); ' +
-                'alege piața și partea de mai jos.',
-            'no-match': 'Nu am găsit echipele și scorul. Completează-le tu, dacă vrei să-l urmărești cu scorul real.',
-            'no-minute': 'Nu am găsit minutul. Completează-l dacă pariul e live.',
-            'payout-mismatch':
-                'Câștigul de pe bilet nu iese din cotă × miză. O cifră a fost citită greșit — ' +
-                'verifică cota și miza.',
-        } as Record<string, string>,
-        problems: {
-            odds: 'Cota trebuie să fie mai mare decât 1.00.',
-            stake: 'Completează miza (poate fi 0).',
-            line: 'Completează linia, de ex. 2.5.',
-            minute: 'Minutul trebuie să fie între 1 și 130, și e necesar dacă dai xG.',
-            score: 'Golurile trebuie să fie numere întregi, 0 sau mai mult.',
-            xg: 'Completează xG-ul pentru ambele echipe, ca numere de 0 sau mai mult.',
-        } as Record<string, string>,
-    },
-
-    track: {
-        title: 'Pariuri deschise',
-        intro:
-            'Introdu ultimele date ale meciului și vezi imediat ce șansă are pariul să câștige. ' +
-            'Datele rămân pe pariu, iar fiecare citire se păstrează în istoric, ca să vezi cum se ' +
-            'mișcă șansa pe parcursul meciului.',
-        empty:
-            'Niciun pariu deschis. Importă unul din bilet sau salvează o analiză, și apare aici.',
-        minute: 'Minut',
-        goalsHome: 'Gol gazde',
-        goalsAway: 'Gol oaspeți',
-        xgHome: 'xG gazde',
-        xgAway: 'xG oaspeți',
-        fromForm: 'Ia datele din formularul de sus',
-        fromFormNote: 'Formularul de sus nu are încă un minut și xG completate.',
-        needState: 'Completează minutul și xG-ul ambelor echipe ca să vezi șansa pariului.',
-        updating: 'Se calculează…',
-        failed: 'Șansa nu a putut fi calculată.',
-        chanceWin: 'Șansa de câștig',
-        chancePush: 'Miza înapoi',
-        chanceLose: 'Șansa de pierdere',
-        pushNote: (line: string) =>
-            `Pe linia întreagă ${line}, exact ${line} goluri returnează miza. De aceea cele trei ` +
-            'șanse adună 100%, iar „Șansa de câștig” e cea reală, cu miza înapoi tratată separat.',
-        decidedWon: 'Scorul a decis pariul: este câștigat, orice s-ar întâmpla până la final.',
-        decidedLost: 'Scorul a decis pariul: este pierdut, orice s-ar întâmpla până la final. Îl poți marca mai sus.',
-        evNow: 'EV la cota ta',
-        evAmount: 'EV pe miza plasată',
-        ifWin: 'Dacă câștigă',
-        ifLose: 'Dacă pierde',
-        fairNow: 'Cotă corectă acum',
-        stake: 'Miza',
-        odds: 'Cota',
-        atEntry: 'La intrare',
-        entryUnknown: 'necunoscută',
-        history: 'Istoric',
-        historyNote: (count: number) => `${count} citiri · cea mai nouă prima`,
-        clearHistory: 'Șterge istoricul',
-        settle: 'Închide pariul',
-        note:
-            'Șansa vine din modelul Poisson pe xG și ritmul meciului. E o estimare, nu o certitudine: ' +
-            'se mișcă cu fiecare gol și cu fiecare xG nou introdus. Nu se schimbă nimic în jurnal.',
+        why:
+            'Sofascore refuză orice cerere care nu vine dintr-un browser real — răspunde 403 inclusiv ' +
+            'la robots.txt — deci serverul acestei aplicații nu are cum să întrebe singur. Browserul ' +
+            'tău are voie, fiindcă acolo pagina e deja deschisă. Semnul de carte de mai jos citește ' +
+            'pagina pe care o ai în față și o trimite încoace; nu se cere nimic în plus de la ei.',
+        step1: 'Trage semnul ăsta în bara de favorite (sau copiază-l și fă-ți un favorit cu el):',
+        bookmarkName: 'BestBet: monitorizează',
+        copy: 'Copiază',
+        copied: 'Copiat',
+        step2:
+            'Deschide meciul pe Sofascore, mergi la fila Statistici, și apasă pe semnul din favorite. ' +
+            'Apasă-l din nou ca să oprești.',
+        step3: (seconds: number) =>
+            `Lasă fila deschisă. Trimite o citire la fiecare ${seconds} de secunde, iar pariurile ` +
+            'deschise din acel meci se recalculează singure.',
+        watching: 'Monitorizare activă',
+        waiting: 'Se așteaptă prima citire din browser…',
+        lastReading: (seconds: number) =>
+            seconds < 60
+                ? `Ultima citire acum ${seconds} s`
+                : `Ultima citire acum ${Math.round(seconds / 60)} min`,
+        reading: (minute: number, home: number, away: number, xgHome: number, xgAway: number) =>
+            `minutul ${minute} · ${home}–${away} · xG ${xgHome}–${xgAway}`,
+        unknownMatch: 'meci nerecunoscut',
+        unusable:
+            'Citirea a ajuns, dar nu conține tot ce trebuie. Pe Sofascore mergi la fila Statistici ' +
+            'și lasă filele pe „All" — de acolo vine xG-ul.',
+        stale:
+            'Citirea e veche. Fila s-a închis, a adormit, sau ai oprit semnul din favorite. Până ' +
+            'revine, numerele de mai jos sunt dintr-un minut care a trecut.',
+        tracking: (labels: string) => `Se recalculează: ${labels}`,
+        nothingTracked:
+            'Niciun pariu deschis din meciul ăsta. Citirea actualizează formularul, dar nu are ce ' +
+            'recalcula.',
+        clear: 'Uită citirea',
+        privacy:
+            'Citirea circulă doar între browserul tău și aplicația de pe calculatorul tău. Nu se ' +
+            'salvează nicăieri și dispare când oprești aplicația.',
+        failed: 'Citirea nu a putut fi luată.',
     },
 
     live: {
@@ -332,6 +268,9 @@ const ro = {
         paceDown: 'Ritm redus la',
         paceUp: 'Ritm crescut la',
         paceHint: (raw: string, adjusted: string) => `${raw} → ${adjusted} xG la 90 de minute, ambele echipe`,
+        overtaken: (minute: string) =>
+            `Calculat la minutul ${minute}, iar meciul a mers mai departe. Apasă Analizează din nou ` +
+            'ca rezultatul să fie pe minutul curent.',
         referenceTitle: 'Linie de referință',
         referenceFair: (source: string) => `Corectă după ${source}`,
         bookFair: 'Corectă după casă',
@@ -380,8 +319,6 @@ const ro = {
         'poisson-live-xg': 'Poisson pe xG live',
         'poisson-live-xg-paced': 'Poisson pe xG live, cu ritmul corectat',
         'manual-input': 'introdusă de tine',
-        'slip-import': 'importat din bilet, fără estimare',
-        'slip-import-model': 'importat din bilet, estimat cu modelul',
         'external-consensus': 'consens extern',
     } as Record<string, string>,
 
@@ -758,6 +695,7 @@ const en: Dictionary = {
         evAmount: 'EV on the stake placed',
         fairNow: 'Fair price now',
         fairNowHint: 'What to judge a cash-out or a hedge against: below it, the offer is against you.',
+        decided: 'What happened on the pitch has decided this bet — there is no fair price left to compare.',
         note:
             'Nothing is saved. The row keeps its entry snapshot, which is the evidence that the ' +
             'decision was reasonable at the time — re-price as often as the match moves.',
@@ -768,120 +706,50 @@ const en: Dictionary = {
         failed: 'The position could not be re-priced.',
     },
 
-    slip: {
-        open: 'Import a bet that is already placed',
+    monitor: {
+        open: 'Watch the match live ›',
         openNote:
-            'From the bookmaker\'s slip: the price, the stake and the score are read for you, and ' +
-            'then you track it with the match.',
-        title: 'Import a bet from its slip',
+            'Open bets re-price themselves as the match moves on. The readings come from the ' +
+            'Sofascore tab you already have open.',
+        title: 'Live monitoring',
         hide: 'Hide',
-        intro:
-            'Nothing can be copied out of the bookmaker\'s app, so the slip comes in as a screenshot ' +
-            '(or as its text, if you have it). Reading happens in the browser; nothing leaves your ' +
-            'computer. Check the fields below before you save — a digit read wrongly means tracking ' +
-            'a bet with different numbers from the ones you staked.',
-        dropHere: 'Drop the slip screenshot here or',
-        dropActive: 'Release to read the slip',
-        chooseFile: 'choose a file',
-        notAnImage: 'That file is not an image.',
-        reading: (percent: number) => `Reading the slip… ${percent}%`,
-        loadingEngine: 'Loading the reading engine (first time only)…',
-        failed: 'The slip could not be read from the image.',
-        textLabel: 'Slip text',
-        textPlaceholder: 'Under 2 2.75\nTotal\nAtletico Madrid 1\nManchester United 0\nStake: 2.00',
-        textNote:
-            'What the engine read off the image shows up here. Correct it or replace it with the ' +
-            'slip\'s text, then press "Read the slip".',
-        read: 'Read the slip',
-        clear: 'Clear',
-        formTitle: 'Check the bet',
-        match: 'Match',
-        matchPlaceholder: 'Atletico Madrid - Manchester United',
-        kind: 'Market',
-        side: 'Side',
-        line: 'Line',
-        bookLabel: 'As written on the slip',
-        odds: 'Price',
-        stake: 'Stake',
-        minute: 'Minute',
-        scoreHome: 'Home goals',
-        scoreAway: 'Away goals',
-        xgHome: 'Home xG',
-        xgAway: 'Away xG',
-        stateTitle: 'Match state when you bet',
-        stateNote:
-            'The slip has the minute and the score but not the xG. Without xG there is no chance ' +
-            'to compute for the entry — that is fine: from "Open bets" you enter the current ' +
-            'state any time and see the chance as it is now.',
-        save: 'Save as an open bet',
-        saving: 'Saving…',
-        saved: 'Saved. It is below, under "Open bets".',
-        saveFailed: 'The bet could not be saved.',
-        issues: {
-            'no-odds': 'I could not find the price. Fill it in.',
-            'no-stake': 'I could not find the stake. Fill it in.',
-            'no-market':
-                'I did not recognise the market. Only totals (Under/Over) are read automatically; ' +
-                'choose the market and side below.',
-            'no-match': 'I could not find the teams and the score. Fill them in to track it against the real score.',
-            'no-minute': 'I could not find the minute. Fill it in if the bet is live.',
-            'payout-mismatch':
-                'The return on the slip does not follow from price × stake. A digit was misread — ' +
-                'check the price and the stake.',
-        } as Record<string, string>,
-        problems: {
-            odds: 'The price must be greater than 1.00.',
-            stake: 'Fill in the stake (it can be 0).',
-            line: 'Fill in the line, e.g. 2.5.',
-            minute: 'The minute must be between 1 and 130, and it is needed if you give xG.',
-            score: 'Goals must be whole numbers, 0 or more.',
-            xg: 'Fill in the xG for both teams, as numbers of 0 or more.',
-        } as Record<string, string>,
-    },
-
-    track: {
-        title: 'Open bets',
-        intro:
-            'Enter the latest match data and see at once what chance the bet has of winning. The ' +
-            'data stays on the bet, and every reading is kept in a history, so you can see how the ' +
-            'chance moves through the match.',
-        empty: 'No open bets. Import one from its slip or save an analysis, and it shows up here.',
-        minute: 'Minute',
-        goalsHome: 'Home goals',
-        goalsAway: 'Away goals',
-        xgHome: 'Home xG',
-        xgAway: 'Away xG',
-        fromForm: 'Take the data from the form above',
-        fromFormNote: 'The form above has no minute and xG filled in yet.',
-        needState: 'Fill in the minute and both teams\' xG to see the bet\'s chance.',
-        updating: 'Calculating…',
-        failed: 'The chance could not be calculated.',
-        chanceWin: 'Chance of winning',
-        chancePush: 'Stake back',
-        chanceLose: 'Chance of losing',
-        pushNote: (line: string) =>
-            `On the whole line ${line}, exactly ${line} goals returns the stake. That is why the ` +
-            'three chances add to 100%, and "Chance of winning" is the real one, with the returned ' +
-            'stake counted separately.',
-        decidedWon: 'The score has decided the bet: it is won, whatever happens to the end.',
-        decidedLost: 'The score has decided the bet: it is lost, whatever happens to the end. You can settle it above.',
-        evNow: 'EV at your price',
-        evAmount: 'EV on the stake placed',
-        ifWin: 'If it wins',
-        ifLose: 'If it loses',
-        fairNow: 'Fair price now',
-        stake: 'Stake',
-        odds: 'Price',
-        atEntry: 'At entry',
-        entryUnknown: 'unknown',
-        history: 'History',
-        historyNote: (count: number) => `${count} readings · newest first`,
-        clearHistory: 'Clear history',
-        settle: 'Settle the bet',
-        note:
-            'The chance comes from the Poisson model on xG and the match tempo. It is an estimate, ' +
-            'not a certainty: it moves with every goal and every new xG you enter. Nothing in the ' +
-            'log changes.',
+        why:
+            'Sofascore refuses any request that is not a real browser — it answers 403 down to ' +
+            'robots.txt — so this app\u2019s server cannot ask on its own. Your browser is allowed, ' +
+            'because that is where the page is already open. The bookmarklet below reads the page in ' +
+            'front of you and sends it here; nothing extra is requested from them.',
+        step1: 'Drag this onto your bookmarks bar (or copy it and make a bookmark of it):',
+        bookmarkName: 'BestBet: watch',
+        copy: 'Copy',
+        copied: 'Copied',
+        step2:
+            'Open the match on Sofascore, go to the Statistics tab, and click the bookmark. Click it ' +
+            'again to stop.',
+        step3: (seconds: number) =>
+            `Leave the tab open. It sends a reading every ${seconds} seconds, and the open bets on ` +
+            'that match re-price themselves.',
+        watching: 'Monitoring on',
+        waiting: 'Waiting for the first reading from the browser…',
+        lastReading: (seconds: number) =>
+            seconds < 60 ? `Last reading ${seconds}s ago` : `Last reading ${Math.round(seconds / 60)} min ago`,
+        reading: (minute: number, home: number, away: number, xgHome: number, xgAway: number) =>
+            `minute ${minute} · ${home}–${away} · xG ${xgHome}–${xgAway}`,
+        unknownMatch: 'match not recognised',
+        unusable:
+            'A reading arrived but it does not carry everything needed. On Sofascore, go to the ' +
+            'Statistics tab and leave the tabs on "All" — that is where the xG is.',
+        stale:
+            'The reading is old. The tab closed, went to sleep, or the bookmark was switched off. ' +
+            'Until it comes back, the numbers below are from a minute that has passed.',
+        tracking: (labels: string) => `Re-pricing: ${labels}`,
+        nothingTracked:
+            'No open bet on this match. The reading still fills the form, but there is nothing to ' +
+            're-price.',
+        clear: 'Forget the reading',
+        privacy:
+            'The reading only travels between your browser and the app on your own machine. It is ' +
+            'not saved anywhere and goes when the app stops.',
+        failed: 'The reading could not be fetched.',
     },
 
     live: {
@@ -929,6 +797,9 @@ const en: Dictionary = {
         paceDown: 'Pace down to',
         paceUp: 'Pace up to',
         paceHint: (raw: string, adjusted: string) => `${raw} → ${adjusted} xG per 90, both sides`,
+        overtaken: (minute: string) =>
+            `Computed at minute ${minute}, and the match has moved on. Press Analyse again to price ` +
+            'it at the current minute.',
         referenceTitle: 'Reference line',
         referenceFair: (source: string) => `Fair per ${source}`,
         bookFair: 'Fair per the book',
@@ -975,8 +846,6 @@ const en: Dictionary = {
         'poisson-live-xg': 'Poisson on live xG',
         'poisson-live-xg-paced': 'Poisson on live xG, pace corrected',
         'manual-input': 'entered by hand',
-        'slip-import': 'imported from a slip, no estimate',
-        'slip-import-model': 'imported from a slip, estimated by the model',
         'external-consensus': 'external consensus',
     } as Record<string, string>,
 

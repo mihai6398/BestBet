@@ -26,8 +26,6 @@ public record PredictionOutcome(string Label, double Probability, double Decimal
 /// <param name="Liquidity">Resting liquidity in dollars, same caveat.</param>
 /// <param name="EndDate">When the market resolves, which is how a last-season copy is spotted.</param>
 /// <param name="Outcomes">Every outcome, so the fair line can be computed across the whole book.</param>
-/// <param name="MarketType">Polymarket's own tag for what kind of market this is, e.g. "moneyline", "totals".</param>
-/// <param name="Line">The goal line for totals and spreads (2.5 in "O/U 2.5"); null for markets without one.</param>
 public record PredictionMarketDto(
     string Id,
     string Question,
@@ -36,6 +34,4 @@ public record PredictionMarketDto(
     double? Volume,
     double? Liquidity,
     DateTime? EndDate,
-    IReadOnlyList<PredictionOutcome> Outcomes,
-    string? MarketType = null,
-    double? Line = null);
+    IReadOnlyList<PredictionOutcome> Outcomes);

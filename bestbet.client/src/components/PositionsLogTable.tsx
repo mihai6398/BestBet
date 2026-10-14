@@ -415,7 +415,9 @@ function RepricePanel({
                     <dt>{t.reprice.fairNow}</dt>
                     <dd>
                         {repriced.fairOddsNow === null ? '—' : odds(repriced.fairOddsNow)}
-                        <span className="metric-sub">{t.reprice.fairNowHint}</span>
+                        <span className="metric-sub">
+                            {repriced.fairOddsNow === null ? t.reprice.decided : t.reprice.fairNowHint}
+                        </span>
                     </dd>
                 </div>
             </dl>

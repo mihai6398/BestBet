@@ -29,28 +29,6 @@ public class PositionsController(PositionService positions) : ControllerBase
     }
 
     /// <summary>
-    /// Records a bet that was placed at a bookmaker, from what its slip shows, so it can be tracked
-    /// with the match as it goes.
-    /// </summary>
-    [HttpPost("import")]
-    [ProducesResponseType<PositionDto>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<PositionDto>> Import(
-        [FromBody] ImportPositionRequest request,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var saved = await positions.ImportAsync(request, cancellationToken);
-            return CreatedAtAction(nameof(List), new { id = saved.Id }, saved);
-        }
-        catch (AnalysisInputException ex)
-        {
-            return Problem(ex);
-        }
-    }
-
-    /// <summary>
     /// Corrects what was taken and fills in what was not known at entry: the price actually got, the
     /// stake actually placed, the closing price, and how the bet settled.
     /// </summary>

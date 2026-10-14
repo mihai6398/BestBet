@@ -245,6 +245,39 @@ public class PositionEditingTests
     }
 
     [Fact]
+    public async Task A_bet_that_can_no_longer_win_has_no_fair_price_rather_than_an_infinite_one()
+    {
+        // Under 2.5 with three goals already scored is not a long shot, it is over. 1/0 is not a
+        // price, and the infinity it used to produce could not be serialised at all — so the whole
+        // answer disappeared at exactly the moment it mattered, and a monitor watching the match
+        // kept showing the numbers from before the goals went in.
+        using var db = NewDb();
+        var service = new PositionService(db);
+        var saved = await service.SaveAsync(SampleSave() with { Selection = "Under 2.5" });
+
+        var now = await service.RepriceAsync(saved.Id, AtMinute(80, 2.40, 1.60, 2, 1));
+
+        Assert.Equal(0.0, now!.OwnProbability, 6);
+        Assert.Null(now.FairOddsNow);
+        Assert.Equal(-1.0, now.ExpectedValuePerUnit, 6);
+    }
+
+    [Fact]
+    public async Task A_bet_that_has_already_won_still_gets_a_price()
+    {
+        // The other end of the same line: Over 2.5 with three goals in is already won, and 1.00 is
+        // a real price.
+        using var db = NewDb();
+        var service = new PositionService(db);
+        var saved = await service.SaveAsync(SampleSave());
+
+        var now = await service.RepriceAsync(saved.Id, AtMinute(88, 2.40, 1.60, 2, 1));
+
+        Assert.Equal(1.0, now!.OwnProbability, 6);
+        Assert.Equal(1.0, now.FairOddsNow!.Value, 6);
+    }
+
+    [Fact]
     public async Task Re_pricing_a_row_that_is_not_there_says_so_rather_than_throwing()
     {
         using var db = NewDb();

@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { analysisClient, ApiError } from './api/analysisClient';
 import { BankrollInput } from './components/BankrollInput';
 import { BatchResultsTable } from './components/BatchResultsTable';
 import { EdgeResultCard } from './components/EdgeResultCard';
+import { LiveMonitorPanel } from './components/LiveMonitorPanel';
 import { LiveStatsInputForm } from './components/LiveStatsInputForm';
-import { BetSlipImportPanel } from './components/BetSlipImportPanel';
 import { OddsInputForm } from './components/OddsInputForm';
-import { OpenBetsTracker } from './components/OpenBetsTracker';
 import { PositionsLogTable } from './components/PositionsLogTable';
 import { ReferenceLinePanel } from './components/ReferenceLinePanel';
 import { QuickImportPanel } from './components/QuickImportPanel';
@@ -26,9 +25,12 @@ import {
 } from './lib/forms';
 import type { LiveFormState, OddsFormState, PaceFormState, ReferenceState } from './lib/forms';
 import { LANGUAGES, useLanguage } from './lib/i18n';
+import { POLL_INTERVAL_SECONDS, sameMatch } from './lib/liveFeed';
+import { parseStatsPaste } from './lib/statsPaste';
 import type { QuickImportResult } from './lib/quickImport';
 import type {
     AnalyzeResponse,
+    LiveFeedState,
     LiveMatchState,
     Position,
     PositionOutcome,
@@ -70,6 +72,22 @@ function App() {
     // in the component rather than on the row the server sends back.
     const [repriced, setRepriced] = useState<Record<number, RepricedPosition>>({});
     const [repricing, setRepricing] = useState<number | null>(null);
+
+    // Readings pushed in from the match page the user has open. See lib/liveFeed.ts for why they
+    // are pushed rather than fetched.
+    const [watching, setWatching] = useLocalStorage('bestbet.watching', false);
+    const [feed, setFeed] = useState<LiveFeedState | null>(null);
+    const [feedError, setFeedError] = useState<string | null>(null);
+
+    // Which reading has already been written into the form, so a poll returning the same one is a
+    // no-op rather than a fight with whatever the user is typing.
+    const appliedReading = useRef<string | null>(null);
+    // Which reading has been applied to which rows. Keyed on both, because the log arrives from its
+    // own request: on a reload with monitoring already on, the first reading lands before the rows
+    // do, and a guard that only remembered the reading would never re-price any of them.
+    const repricedReading = useRef<string | null>(null);
+    // The minute the result on screen was computed at, so it can say when it has been overtaken.
+    const [resultMinute, setResultMinute] = useState<string | null>(null);
 
     // The log is fetched by one effect keyed on a counter, and every mutation just bumps the counter.
     // That keeps a single place responsible for talking to the API and for ignoring a response that
@@ -136,6 +154,7 @@ function App() {
         setAnalysing(true);
         setError(null);
         setSavedId(null);
+        setResultMinute(live.isLive ? live.minutePlayed : null);
         try {
             setResult(
                 await analysisClient.analyze(
@@ -223,6 +242,136 @@ function App() {
             setBatchSaving(null);
         }
     };
+
+    // --- Watching a match that is still being played ------------------------
+
+    const feedText = feed?.text ?? null;
+    const feedParsed = useMemo(() => (feedText ? parseStatsPaste(feedText) : null), [feedText]);
+
+    const tracked = useMemo(
+        () =>
+            positions.filter(
+                (position) =>
+                    position.outcome === 'Pending' &&
+                    sameMatch(position.matchLabel, feedParsed?.matchLabel),
+            ),
+        [positions, feedParsed?.matchLabel],
+    );
+
+
+    // The token has to be in hand before the bookmarklet can be built, so one read happens whether
+    // or not monitoring is on. A backend that is not up yet simply leaves the panel waiting.
+    useEffect(() => {
+        let cancelled = false;
+
+        void (async () => {
+            try {
+                const first = await analysisClient.liveFeed();
+                if (!cancelled) setFeed(first);
+            } catch {
+                // The monitor is optional; nothing else on the page depends on it.
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!watching) return undefined;
+
+        let cancelled = false;
+
+        const read = async () => {
+            try {
+                const next = await analysisClient.liveFeed();
+                if (cancelled) return;
+                setFeed(next);
+                setFeedError(null);
+            } catch (e) {
+                if (!cancelled) setFeedError(e instanceof Error ? e.message : t.monitor.failed);
+            }
+        };
+
+        void read();
+        const timer = window.setInterval(() => void read(), POLL_INTERVAL_SECONDS * 1000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+        };
+    }, [watching, t]);
+
+    /** The reading as the model wants it, or null while it is missing something the model needs. */
+    const feedLiveState = useMemo<LiveMatchState | null>(() => {
+        if (!feedParsed || feedParsed.missing.length > 0) return null;
+
+        return {
+            minutePlayed: feedParsed.minute!,
+            cumulativeXgHome: feedParsed.xgHome!,
+            cumulativeXgAway: feedParsed.xgAway!,
+            currentGoalsHome: feedParsed.goalsHome ?? 0,
+            currentGoalsAway: feedParsed.goalsAway ?? 0,
+            isPreMatch: false,
+        };
+    }, [feedParsed]);
+
+    /** Writes a new reading into the form, once. */
+    useEffect(() => {
+        if (!watching || !feed?.receivedUtc || !feedLiveState) return;
+        if (appliedReading.current === feed.receivedUtc) return;
+
+        appliedReading.current = feed.receivedUtc;
+
+        // Synchronising with an external system — a reading that arrived from another browser tab —
+        // is what effects are for, and there is no event here to hang it on instead.
+        // eslint-disable-next-line react/set-state-in-effect
+        setLive((current) => ({
+            ...current,
+            isLive: true,
+            minutePlayed: String(feedLiveState.minutePlayed),
+            cumulativeXgHome: String(feedLiveState.cumulativeXgHome),
+            cumulativeXgAway: String(feedLiveState.cumulativeXgAway),
+            currentGoalsHome: String(feedLiveState.currentGoalsHome),
+            currentGoalsAway: String(feedLiveState.currentGoalsAway),
+        }));
+
+        const label = feedParsed?.matchLabel;
+        if (label) {
+            // eslint-disable-next-line react/set-state-in-effect
+            setOdds((current) => (current.matchLabel === '' ? { ...current, matchLabel: label } : current));
+        }
+    }, [watching, feed?.receivedUtc, feedLiveState, feedParsed?.matchLabel, setLive, setOdds]);
+
+    /**
+     * Re-prices the open bets on the match the reading came from.
+     *
+     * Keyed on the reading AND the rows, because they arrive from two different requests and in
+     * either order. The match check is the part that matters most: priced against another match's
+     * clock, a saved bet would get a confident number about a game it has nothing to do with.
+     */
+    useEffect(() => {
+        if (!watching || !feed?.receivedUtc || !feedLiveState || tracked.length === 0) return;
+
+        const reading = `${feed.receivedUtc}|${tracked.map((position) => position.id).join(',')}`;
+        if (repricedReading.current === reading) return;
+        repricedReading.current = reading;
+
+        void Promise.all(
+            tracked.map(async (position) => {
+                try {
+                    const now = await analysisClient.reprice(position.id, { liveState: feedLiveState });
+                    setRepriced((current) => ({ ...current, [position.id]: now }));
+                } catch (e) {
+                    // One row that cannot be re-priced must not stop the others — but it must not
+                    // vanish either. A monitor that fails quietly leaves the previous minute's
+                    // numbers on screen looking current, which is worse than showing nothing.
+                    setFeedError(e instanceof Error ? e.message : t.reprice.failed);
+                }
+            }),
+        );
+    }, [watching, feed?.receivedUtc, feedLiveState, tracked, t]);
 
     const blocked = batchBlockedBy(live);
     const blockedReason =
@@ -340,7 +489,6 @@ function App() {
 
             <main className="layout">
                 <div className="column">
-                    <BetSlipImportPanel onSaved={refreshLog} />
                     <ScreenshotImportPanel
                         onAnalyseAll={analyseAll}
                         onPickOne={(candidate) => {
@@ -351,6 +499,24 @@ function App() {
                         }}
                         blockedReason={blockedReason}
                         busy={batchRunning}
+                    />
+                    <LiveMonitorPanel
+                        feed={feed}
+                        parsed={feedParsed}
+                        watching={watching}
+                        onWatchingChange={setWatching}
+                        tracked={tracked.map((position) => position.marketLabel || position.selection)}
+                        error={feedError}
+                        onClear={() => {
+                            void analysisClient.clearLiveFeed().catch(() => {});
+                            appliedReading.current = null;
+                            repricedReading.current = null;
+                            setFeed((current) =>
+                                current
+                                    ? { ...current, text: null, receivedUtc: null, ageSeconds: null, source: null }
+                                    : current,
+                            );
+                        }}
                     />
                     <StatsPastePanel live={live} onApply={applyStatsPaste} />
                     <ReferenceLinePanel
@@ -407,6 +573,11 @@ function App() {
                             onSave={savePosition}
                             saving={saving}
                             saved={savedId !== null}
+                            overtakenAtMinute={
+                                watching && resultMinute !== null && resultMinute !== live.minutePlayed
+                                    ? resultMinute
+                                    : null
+                            }
                         />
                     ) : (
                         batch.length === 0 &&
@@ -418,8 +589,6 @@ function App() {
                     )}
                 </div>
             </main>
-
-            <OpenBetsTracker positions={positions} live={live} onSettle={updateOutcome} />
 
             <PositionsLogTable
                 positions={positions}
