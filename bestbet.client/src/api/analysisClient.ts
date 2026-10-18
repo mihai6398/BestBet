@@ -5,6 +5,9 @@ import type {
     LiveFeedState,
     Position,
     PositionsSummary,
+    PreMatchRequest,
+    PreMatchResponse,
+    PreMatchStatus,
     PredictionMarket,
     RepriceRequest,
     RepricedPosition,
@@ -95,4 +98,11 @@ export const analysisClient = {
     liveFeed: () => request<LiveFeedState>('/api/live-feed'),
 
     clearLiveFeed: () => request<void>('/api/live-feed', { method: 'DELETE' }),
+
+    /** Whether the pre-match model has a key to work with, and which competitions it can read. */
+    preMatchStatus: () => request<PreMatchStatus>('/api/prematch/status'),
+
+    /** Team form and player scoring for a fixture. Sends the competition and team names only. */
+    preMatch: (payload: PreMatchRequest) =>
+        request<PreMatchResponse>('/api/prematch', { method: 'POST', body: JSON.stringify(payload) }),
 };

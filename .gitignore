@@ -15,3 +15,6 @@ node_modules/
 .vs/
 .idea/
 *.user
+
+# Local secrets (API-Football key for docker compose)
+.env

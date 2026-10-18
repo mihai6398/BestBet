@@ -175,6 +175,83 @@ const ro = {
         failed: 'Poziția nu a putut fi recalculată.',
     },
 
+    prematch: {
+        open: 'Calculează din echipe și jucători (pre-meci) ›',
+        openNote:
+            'Probabilitate pentru un meci care nu a început: forma echipelor în acest sezon și ' +
+            'cine joacă, în loc de o cifră scrisă de mână.',
+        title: 'Pre-meci: echipe și jucători',
+        hide: 'Ascunde',
+        intro:
+            'Din clasamentul competiției se iau golurile marcate și primite de fiecare echipă, acasă ' +
+            'și în deplasare, față de media ligii. Din statisticile jucătorilor se vede cine aduce ' +
+            'golurile: dacă un golgheter lipsește, echipa pierde o parte din ele. Rezultatul intră în ' +
+            'analiza obișnuită, așa că verdictul și miza se calculează ca până acum.',
+        notConfigured:
+            'Funcția are nevoie de o cheie gratuită de la API-Football (100 de cereri pe zi). O ' +
+            'creezi pe dashboard.api-football.com, apoi o pui în ApiFootball__Key (fișierul .env ' +
+            'pentru Docker, sau „dotnet user-secrets set ApiFootball:Key …"), și repornești ' +
+            'aplicația. Detalii în GHID_RULARE.md.',
+        privacy:
+            'Către API-Football pleacă doar competiția, sezonul și echipele. Cheia rămâne pe ' +
+            'server. Nu pleacă: capitalul, miza, cotele sau jurnalul.',
+        league: 'Competiția',
+        home: 'Gazde',
+        away: 'Oaspeți',
+        homePlaceholder: 'Manchester City',
+        awayPlaceholder: 'Arsenal',
+        run: 'Calculează',
+        running: 'Se citesc datele…',
+        failed: 'Calculul pre-meci nu a putut fi făcut.',
+        season: (year: number, name: string) =>
+            `${name} ${year}/${String((year + 1) % 100).padStart(2, '0')}`,
+        expectedGoals: 'Goluri așteptate',
+        beforeAbsences: (value: string) => `înainte de absențe: ${value}`,
+        missing: (percent: string) => `lipsesc ${percent} din golurile echipei`,
+        homeWin: 'Victorie gazde',
+        draw: 'Egal',
+        awayWin: 'Victorie oaspeți',
+        btts: 'Ambele marchează',
+        over: (line: string) => `Peste ${line}`,
+        form: 'Forma în sezon',
+        formLine: (gf: string, ga: string, games: number) =>
+            `${gf} marcate / ${ga} primite pe meci (${games} meciuri)`,
+        formHome: 'acasă',
+        formAway: 'în deplasare',
+        scorers: 'Cine poate marca',
+        player: 'Jucător',
+        pos: 'Poz.',
+        goals: 'Goluri',
+        shots: 'Șuturi',
+        minutes: 'Min.',
+        chance: 'Șansă',
+        fairOdds: 'Cotă corectă',
+        yourOdds: 'Cota casei',
+        verdict: 'Merită?',
+        absent: 'Lipsește',
+        absentHint:
+            'Bifează un jucător care nu joacă (accidentat, suspendat, odihnit); calculul se reface.',
+        worth: 'Merită',
+        borderline: 'La limită',
+        notWorth: 'Nu merită',
+        edgeOf: (pp: string) => `avantaj ${pp}`,
+        scorerNote:
+            'Jucătorii sunt cei din lotul sezonului, nu din echipa de start: confirmă formația ' +
+            'înainte de miză. „Merită" compară șansa estimată cu cota ta, fără să scoată marja casei, ' +
+            'deci e un test strict.',
+        apply: 'Folosește în analiză',
+        applied: 'Folosit în analiza de mai jos',
+        applyNote:
+            'Analiza de mai jos va calcula șansa pieței alese (1X2, Peste/Sub, GG) din aceste goluri ' +
+            'așteptate. Funcționează pentru un meci care nu a început: debifează „Meciul este în ' +
+            'desfășurare".',
+        remove: 'Renunță la model',
+        limits:
+            'Nu știe nimic despre tactică, motivație, vreme sau știri apărute după citirea datelor, ' +
+            'și tratează golurile celor două echipe ca independente. E o estimare de pornire mai ' +
+            'bună decât una scrisă de mână, nu un preț.',
+    },
+
     monitor: {
         open: 'Monitorizează meciul în timp real ›',
         openNote:
@@ -433,6 +510,7 @@ const ro = {
     method: {
         'poisson-live-xg': 'Poisson pe xG live',
         'poisson-live-xg-paced': 'Poisson pe xG live, cu ritmul corectat',
+        'poisson-prematch-squad': 'Poisson pre-meci, din echipe și jucători',
         'manual-input': 'introdusă de tine',
         'slip-import': 'importat din bilet, fără estimare',
         'slip-import-model': 'importat din bilet, estimat cu modelul',
@@ -823,6 +901,81 @@ const en: Dictionary = {
         failed: 'The position could not be re-priced.',
     },
 
+    prematch: {
+        open: 'Calculate from teams and players (pre-match) ›',
+        openNote:
+            'A probability for a match that has not started: how the teams have done this season and ' +
+            'who is playing, instead of a number typed by hand.',
+        title: 'Pre-match: teams and players',
+        hide: 'Hide',
+        intro:
+            'The competition table gives each team\u2019s goals scored and conceded, home and away, ' +
+            'against the league average. Player statistics show who the goals come from: if a top ' +
+            'scorer is missing, the team loses part of them. The result feeds the usual analysis, so ' +
+            'the verdict and the stake are worked out as before.',
+        notConfigured:
+            'This needs a free API-Football key (100 requests a day). Create one at ' +
+            'dashboard.api-football.com, put it in ApiFootball__Key (a .env file for Docker, or ' +
+            '"dotnet user-secrets set ApiFootball:Key …"), and restart the app. Details in ' +
+            'GHID_RULARE.md.',
+        privacy:
+            'Only the competition, the season and the teams go to API-Football. The key stays on ' +
+            'the server. Nothing else leaves: not the bankroll, the stake, the prices or the log.',
+        league: 'Competition',
+        home: 'Home',
+        away: 'Away',
+        homePlaceholder: 'Manchester City',
+        awayPlaceholder: 'Arsenal',
+        run: 'Calculate',
+        running: 'Reading the data…',
+        failed: 'The pre-match calculation could not be run.',
+        season: (year: number, name: string) =>
+            `${name} ${year}/${String((year + 1) % 100).padStart(2, '0')}`,
+        expectedGoals: 'Expected goals',
+        beforeAbsences: (value: string) => `before absences: ${value}`,
+        missing: (percent: string) => `${percent} of the team\u2019s goals are missing`,
+        homeWin: 'Home win',
+        draw: 'Draw',
+        awayWin: 'Away win',
+        btts: 'Both teams score',
+        over: (line: string) => `Over ${line}`,
+        form: 'Form this season',
+        formLine: (gf: string, ga: string, games: number) =>
+            `${gf} scored / ${ga} conceded per game (${games} games)`,
+        formHome: 'home',
+        formAway: 'away',
+        scorers: 'Who can score',
+        player: 'Player',
+        pos: 'Pos.',
+        goals: 'Goals',
+        shots: 'Shots',
+        minutes: 'Min.',
+        chance: 'Chance',
+        fairOdds: 'Fair price',
+        yourOdds: 'Book price',
+        verdict: 'Worth it?',
+        absent: 'Out',
+        absentHint: 'Tick a player who will not play (injured, suspended, rested); it recalculates.',
+        worth: 'Worth it',
+        borderline: 'Marginal',
+        notWorth: 'Not worth it',
+        edgeOf: (pp: string) => `edge ${pp}`,
+        scorerNote:
+            'Players are the season\u2019s squad, not the starting eleven: confirm the line-up before ' +
+            'staking. "Worth it" compares the estimated chance with your price without removing the ' +
+            'bookmaker\u2019s margin, so it is a strict test.',
+        apply: 'Use in the analysis',
+        applied: 'Used in the analysis below',
+        applyNote:
+            'The analysis below will work out the chosen market (1X2, Over/Under, BTTS) from these ' +
+            'expected goals. It works for a match that has not started: untick "This match is live".',
+        remove: 'Stop using the model',
+        limits:
+            'It knows nothing about tactics, motivation, weather or news that broke after the data ' +
+            'was read, and treats the two teams\u2019 goals as independent. It is a better starting ' +
+            'estimate than a typed one, not a price.',
+    },
+
     monitor: {
         open: 'Watch the match live ›',
         openNote:
@@ -1078,6 +1231,7 @@ const en: Dictionary = {
     method: {
         'poisson-live-xg': 'Poisson on live xG',
         'poisson-live-xg-paced': 'Poisson on live xG, pace corrected',
+        'poisson-prematch-squad': 'Poisson pre-match, from teams and players',
         'manual-input': 'entered by hand',
         'slip-import': 'imported from a slip, no estimate',
         'slip-import-model': 'imported from a slip, estimated by the model',

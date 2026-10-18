@@ -93,3 +93,31 @@ describe('sending a reference line', () => {
         expect(request.referenceMarket?.kind).toBe('TotalGoals');
     });
 });
+
+describe('sending the pre-match model', () => {
+    const rates = { homeExpectedGoals: 2.1, awayExpectedGoals: 1.0 };
+
+    it('replaces the typed probability when the match has not started', () => {
+        const prematch = { ...live(), isLive: false, manualOwnProbability: '55' };
+        const request = buildAnalyzeRequest(totals(), prematch, 100, defaultPaceForm(), null, rates);
+
+        expect(request.preMatch).toEqual(rates);
+        expect(request.manualOwnProbability).toBeUndefined();
+        expect(request.liveState).toBeNull();
+    });
+
+    it('is ignored for a live match, which is priced from its own xG', () => {
+        const request = buildAnalyzeRequest(totals(), live(), 100, defaultPaceForm(), null, rates);
+
+        expect(request.preMatch).toBeUndefined();
+        expect(request.liveState).not.toBeNull();
+    });
+
+    it('leaves the typed probability alone when no model is in use', () => {
+        const prematch = { ...live(), isLive: false, manualOwnProbability: '55' };
+        const request = buildAnalyzeRequest(totals(), prematch, 100, defaultPaceForm());
+
+        expect(request.manualOwnProbability).toBeCloseTo(0.55, 10);
+        expect(request.preMatch).toBeUndefined();
+    });
+});

@@ -10,6 +10,8 @@
     <!-- Source files are UTF-8. Without this the compiler falls back to the machine's ANSI codepage
          for any file lacking a BOM, which silently mangles the em-dashes in user-facing strings. -->
     <CodePage>65001</CodePage>
+    <!-- Holds ApiFootball:Key in development: dotnet user-secrets set "ApiFootball:Key" "..." -->
+    <UserSecretsId>bestbet-server-dev</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

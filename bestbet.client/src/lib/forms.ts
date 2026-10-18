@@ -5,6 +5,7 @@ import type {
     MarketKind,
     MarketSelection,
     PaceSettings,
+    PreMatchRates,
     SavePositionRequest,
 } from '../types/domain';
 
@@ -129,6 +130,7 @@ export function buildAnalyzeRequest(
     bankroll: number,
     pace: PaceFormState = defaultPaceForm(),
     reference: ReferenceState | null = null,
+    preMatch: PreMatchRates | null = null,
 ): AnalyzeRequest {
     const config = marketKindConfig(odds.kind);
 
@@ -154,7 +156,11 @@ export function buildAnalyzeRequest(
         // of the market a stake is being sized against.
         selection: odds.selection,
         line: config.needsLine && odds.line !== '' ? Number(odds.line) : undefined,
-        manualOwnProbability: live.isLive ? undefined : Number(live.manualOwnProbability) / 100,
+        // Pre-match, the model's rates replace the typed probability when there are any: the server
+        // prices the chosen market from them, so the number is not left to a guess.
+        manualOwnProbability:
+            live.isLive || preMatch ? undefined : Number(live.manualOwnProbability) / 100,
+        preMatch: !live.isLive && preMatch ? preMatch : undefined,
         pace: live.isLive ? buildPaceSettings(pace) : undefined,
         referenceMarket: reference
             ? {

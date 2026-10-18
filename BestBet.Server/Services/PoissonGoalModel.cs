@@ -76,6 +76,24 @@ public static class PoissonGoalModel
     }
 
     /// <summary>
+    /// The distribution of a whole match from before kick-off, given each side's expected goals.
+    /// Same independent-Poisson construction as the live model, with nothing yet on the board.
+    /// </summary>
+    public static GoalDistribution FullMatch(double expectedHome, double expectedAway)
+    {
+        var maxGoals = ChooseTruncation(expectedHome + expectedAway);
+
+        return new GoalDistribution(
+            RegulationMinutes,
+            expectedHome,
+            expectedAway,
+            PoissonPmfTable(expectedHome, maxGoals),
+            PoissonPmfTable(expectedAway, maxGoals),
+            0,
+            0);
+    }
+
+    /// <summary>
     /// Minutes left to play. Past minute 85 a fixed stoppage allowance is added, so a match shown as
     /// "90+2" still has scoring time left in the model rather than collapsing to zero.
     /// </summary>

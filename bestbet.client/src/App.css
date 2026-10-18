@@ -907,3 +907,45 @@ th.numeric {
     font-variant-numeric: tabular-nums;
     font-size: 0.9rem;
 }
+
+/* --- Pre-match model -------------------------------------------------------- */
+
+.prematch-heading {
+    margin: 1rem 0 0.2rem;
+    font-size: 1rem;
+}
+
+.prematch-team {
+    margin-top: 0.4rem;
+}
+
+.row-muted {
+    opacity: 0.5;
+}
+
+.input-narrow {
+    width: 5rem;
+}
+
+.pill {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.pill-worth {
+    background: var(--good-bg);
+    color: var(--good);
+}
+
+.pill-marginal {
+    background: var(--warn-bg);
+    color: var(--warn);
+}
+
+.pill-not-worth {
+    background: var(--bad-bg);
+    color: var(--bad);
+}

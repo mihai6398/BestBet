@@ -68,7 +68,7 @@ dotnet test
 npm --prefix bestbet.client test
 ```
 
-245 server tests, including the worked examples from the specification pinned as an acceptance suite in
+287 server tests, including the worked examples from the specification pinned as an acceptance suite in
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`. Those are the definition of "the maths
 is still right" — if one of them drifts, fix that before adding anything.
 
@@ -107,6 +107,29 @@ Every correction that fires is reported in the result rather than applied silent
 names the direction it went — the spec's fixed "treat this as a floor" wording reads backwards after
 a hot start, which is exactly when it matters most.
 
+## Pre-match: teams and players
+
+Before kick-off there is no live xG, so a pre-match analysis used to need a probability typed by
+hand. The pre-match panel works one out. Each side's expected goals come from its season so far —
+goals scored and conceded, home and away, against the competition's average, shrunk towards that
+average while the sample is small (`PreMatchModel`). Player statistics refine it: each player's
+scoring rate is measured from goals *and* shots, shrunk towards what his position usually produces,
+and weighted by how much of a match he plays. Mark a player absent and his share of the goals leaves
+with him, less the part a replacement keeps. The same numbers give every likely scorer's chance of
+scoring and a fair price to hold a bookmaker's against.
+
+The expected goals feed the ordinary analysis (`preMatch` on `POST /api/analyze`), so any 1X2,
+totals, both-teams-to-score or handicap price is priced from them and goes through the same edge test
+and Kelly sizing as everything else.
+
+It needs a free [API-Football](https://dashboard.api-football.com) key (`ApiFootball:Key`, or the
+`ApiFootball__Key` environment variable): nothing else serves player statistics to a server. Requests
+carry the competition, season and team ids only, the key never reaches the browser, and a match
+costs three requests, cached for hours. Without a key the rest of the app is unchanged.
+
+It does not know the starting eleven, tactics, motivation or late news, and treats the two scores as
+independent — a better prior than a typed number, not a price.
+
 ## The reference line
 
 A bookmaker does two jobs with one set of prices: it tells you what the market thinks, and it tells
@@ -119,8 +142,8 @@ it while EV and the Kelly stake stay at the price you can actually get. Mixing t
 a stake against a price nobody will give you — is the one way this could cost money, so the server
 keeps them apart and the result card shows both lines and their disagreement.
 
-`GET /api/reference/polymarket?q=` is the only outbound request this app ever makes; the search term
-is the only thing that travels, and the rest of the app works unchanged when it fails.
+`GET /api/reference/polymarket?q=` makes an outbound request with nothing but the search term in it, and
+the rest of the app works unchanged when it fails. The only other is the pre-match model's, above.
 
 ## The positions log
 

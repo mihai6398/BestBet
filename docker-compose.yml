@@ -12,6 +12,9 @@ services:
       # Production keeps Swagger and detailed errors off. Set this to Development if you want the
       # Swagger UI at /swagger while poking at the API by hand.
       ASPNETCORE_ENVIRONMENT: Production
+      # Optional. A free key from https://dashboard.api-football.com enables the pre-match model
+      # (team form and player scoring). Put APIFOOTBALL_KEY=... in a .env file next to this one.
+      ApiFootball__Key: ${APIFOOTBALL_KEY:-}
     volumes:
       # The positions log. Named volume rather than a bind mount so the container's non-root user
       # keeps the write permission it was given in the image.

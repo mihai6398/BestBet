@@ -8,6 +8,7 @@ import { LiveMonitorPanel } from './components/LiveMonitorPanel';
 import { LiveStatsInputForm } from './components/LiveStatsInputForm';
 import { OddsInputForm } from './components/OddsInputForm';
 import { PositionsLogTable } from './components/PositionsLogTable';
+import { PreMatchPanel } from './components/PreMatchPanel';
 import { ReferenceLinePanel } from './components/ReferenceLinePanel';
 import { QuickImportPanel } from './components/QuickImportPanel';
 import { OddsPastePanel } from './components/OddsPastePanel';
@@ -35,6 +36,7 @@ import type {
     Position,
     PositionOutcome,
     PositionsSummary,
+    PreMatchRates,
     RepricedPosition,
 } from './types/domain';
 
@@ -50,6 +52,10 @@ function App() {
     // A sharper line to measure the edge against. Null means the bookmaker's own de-vig is used,
     // which is how this app worked before and still works when Polymarket has nothing to say.
     const [reference, setReference] = useState<ReferenceState | null>(null);
+
+    // Expected goals from the pre-match model, once the user has chosen to price the market with
+    // them. Null means the probability is typed by hand, as it was before the model existed.
+    const [preMatch, setPreMatch] = useState<PreMatchRates | null>(null);
 
     const [result, setResult] = useState<AnalyzeResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -158,7 +164,7 @@ function App() {
         try {
             setResult(
                 await analysisClient.analyze(
-                    buildAnalyzeRequest(odds, live, bankroll, pace, reference),
+                    buildAnalyzeRequest(odds, live, bankroll, pace, reference, preMatch),
                 ),
             );
         } catch (e) {
@@ -519,6 +525,17 @@ function App() {
                         }}
                     />
                     <StatsPastePanel live={live} onApply={applyStatsPaste} />
+                    <PreMatchPanel
+                        matchLabel={odds.matchLabel}
+                        active={preMatch}
+                        onApply={(rates) => {
+                            setPreMatch(rates);
+                            // The model prices a match that has not started, so using it turns the
+                            // live switch off; a live match is priced from its own xG instead.
+                            if (rates) setLive((current) => ({ ...current, isLive: false }));
+                            setResult(null);
+                        }}
+                    />
                     <ReferenceLinePanel
                         matchLabel={odds.matchLabel}
                         value={reference}

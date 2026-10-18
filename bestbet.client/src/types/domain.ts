@@ -137,6 +137,8 @@ export interface AnalyzeRequest {
     /** The SAME outcome priced somewhere else. Nothing checks that; the panel says so. */
     referenceMarket?: MarketOdds;
     referenceSource?: string;
+    /** Expected goals from the pre-match model. Prices a match that has not started. */
+    preMatch?: PreMatchRates;
 }
 
 /** One outcome on a prediction market, priced both as a probability and as decimal odds. */
@@ -386,3 +388,89 @@ export const MARKET_KINDS: ReadonlyArray<{
 ];
 
 export const DISCLAIMER = 'Educational decision-support only. Not financial or betting advice.';
+
+// --- Pre-match model: team form and the players expected to play --------------------------------
+
+export interface PreMatchRates {
+    homeExpectedGoals: number;
+    awayExpectedGoals: number;
+}
+
+export interface LeagueOption {
+    id: number;
+    name: string;
+}
+
+export interface PreMatchStatus {
+    /** Whether an API key has been set on the server. */
+    configured: boolean;
+    leagues: LeagueOption[];
+    currentSeason: number;
+}
+
+export interface PreMatchRequest {
+    leagueId: number;
+    homeTeam: string;
+    awayTeam: string;
+    season?: number;
+    homeAbsent?: number[];
+    awayAbsent?: number[];
+}
+
+export interface TeamForm {
+    homePlayed: number;
+    awayPlayed: number;
+    played: number;
+    goalsForHome: number;
+    goalsAgainstHome: number;
+    goalsForAway: number;
+    goalsAgainstAway: number;
+}
+
+export interface PlayerScoringChance {
+    id: number;
+    name: string;
+    position: string | null;
+    appearances: number;
+    minutes: number;
+    goals: number;
+    shots: number;
+    goalsPer90: number;
+    expectedMatchFraction: number;
+    /** P(at least one goal), 0..1. */
+    scoringProbability: number;
+    /** 1 / scoringProbability: the price at which backing him breaks even. */
+    fairOdds: number;
+    absent: boolean;
+}
+
+export interface PreMatchTeam {
+    id: number;
+    name: string;
+    form: TeamForm;
+    /** After absences — the number the probabilities use. */
+    expectedGoals: number;
+    baseExpectedGoals: number;
+    /** Share (0..1) of the squad's expected scoring that is marked absent. */
+    missingShare: number;
+    players: PlayerScoringChance[];
+}
+
+export interface PreMatchResponse {
+    leagueId: number;
+    leagueName: string;
+    season: number;
+    league: { homeGoals: number; awayGoals: number };
+    home: PreMatchTeam;
+    away: PreMatchTeam;
+    rates: PreMatchRates;
+    probabilities: {
+        homeWin: number;
+        draw: number;
+        awayWin: number;
+        bothTeamsToScore: number;
+        totals: { line: number; over: number }[];
+    };
+    warnings: string[];
+    disclaimer: string;
+}

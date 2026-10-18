@@ -31,7 +31,9 @@ public class AnalysisService
 
         var (estimate, diagnostics) = isLive
             ? EstimateFromLiveModel(request)
-            : EstimateFromManualInput(request);
+            : request.PreMatch is not null
+                ? EstimateFromPreMatchModel(request)
+                : EstimateFromManualInput(request);
 
         var liveCaveat = diagnostics is null ? null : PaceModel.CaveatFor(diagnostics.Pace);
 
@@ -172,6 +174,48 @@ public class AnalysisService
 
         return (estimate, diagnostics);
     }
+
+    /// <summary>
+    /// Prices the outcome off the pre-match model's expected goals, so a match that has not started
+    /// gets a probability from the teams and their players instead of from a guess.
+    /// </summary>
+    private static (ProbabilityEstimate, ModelDiagnostics?) EstimateFromPreMatchModel(AnalyzeRequest request)
+    {
+        var rates = request.PreMatch!;
+        if (!(rates.HomeExpectedGoals > 0.0) || !(rates.AwayExpectedGoals > 0.0)
+            || double.IsInfinity(rates.HomeExpectedGoals) || double.IsInfinity(rates.AwayExpectedGoals))
+        {
+            throw new AnalysisInputException(
+                "The pre-match expected goals must be positive numbers for both teams.");
+        }
+
+        var selection = ResolveSelection(request);
+
+        MarketProbability resolved;
+        try
+        {
+            resolved = MarketProbabilityResolver.Resolve(
+                request.Market.Kind,
+                selection,
+                PoissonGoalModel.FullMatch(rates.HomeExpectedGoals, rates.AwayExpectedGoals));
+        }
+        catch (ArgumentException ex)
+        {
+            throw new AnalysisInputException(ex.Message);
+        }
+
+        return (
+            new ProbabilityEstimate(
+                resolved.Probability,
+                PreMatchMethod,
+                resolved.Description +
+                " Expected goals come from the teams' season form and the players expected to play; " +
+                "they do not know about tactics, motivation or news that broke after the data was read."),
+            null);
+    }
+
+    /// <summary>The method code stored with the estimate, and translated on screen.</summary>
+    public const string PreMatchMethod = "poisson-prematch-squad";
 
     private static (ProbabilityEstimate, ModelDiagnostics?) EstimateFromManualInput(AnalyzeRequest request)
     {

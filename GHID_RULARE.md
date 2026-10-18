@@ -455,14 +455,63 @@ puncte procentuale.
 
 ### Ce pleacă de pe calculator
 
-Doar textul căutării, și doar când apeși *Caută*. Este singura cerere pe care aplicația o face
-vreodată în afară. Nu pleacă nimic altceva: nici capitalul, nici miza, nici jurnalul, nici capturile
+Doar textul căutării, și doar când apeși *Caută*. Este cererea făcută fără cont; singura altă
+cerere în afară este cea din §5b, care cere o cheie. Nu pleacă nimic altceva: nici capitalul, nici miza, nici jurnalul, nici capturile
 de ecran. Nu există cont, cheie sau autentificare. Dacă Polymarket nu răspunde, primești un mesaj și
 restul aplicației funcționează neschimbat — citirea capturilor și a statisticilor merg în continuare
 fără internet.
 
 Marja referinței este afișată lângă ea tocmai ca verificare: o piață de predicții arată ~0%. Dacă
 vezi 8%, nu te uiți la o piață fără marjă.
+
+---
+
+## 5b. Pre-meci: echipe și jucători
+
+Pentru un meci care nu a început, analiza nu are xG live, deci până acum trebuia să scrii tu
+probabilitatea. Panoul **Calculează din echipe și jucători (pre-meci)** o calculează:
+
+1. **Forma echipelor.** Din clasamentul competiției se iau golurile marcate și primite de fiecare
+   echipă, acasă și în deplasare, față de media ligii. O echipă de top cu atac puternic contra unei
+   apărări slabe ajunge la 2.5–3 goluri așteptate; două echipe medii, la media ligii. Primele meciuri
+   ale sezonului contează puțin: mediile sunt trase spre media ligii (echivalentul a 6 meciuri).
+2. **Jucătorii.** Din statisticile sezonului (goluri și șuturi, nu doar goluri — șuturile sunt mult mai
+   stabile) se estimează cine aduce golurile echipei, ținând cont de câte minute joacă. Bifezi un
+   jucător **Lipsește** (accidentat, suspendat, odihnit) și golurile lui pleacă din echipă, doar în
+   parte, fiindcă înlocuitorul tot mai marchează.
+3. **„Cine poate marca".** Pentru fiecare jucător vezi șansa să marcheze, cota corectă și, dacă scrii
+   cota casei, dacă *merită*. Testul e strict: nu scoate marja casei și folosește pragurile din
+   analiza pre-meci (3 puncte avantaj = merită, 1 punct = la limită).
+
+Apoi **Folosește în analiză**: analiza de dedesubt calculează șansa pieței alese — 1X2, Peste/Sub, GG,
+handicap — din golurile așteptate, în loc să te întrebe. Verdictul, EV-ul și miza rămân cele de până
+acum.
+
+### Cheia API-Football
+
+Statisticile jucătorilor nu se pot lua fără cont (Sofascore refuză orice cerere care nu vine dintr-un
+browser). De aceea funcția are nevoie de o **cheie gratuită** de la API-Football (100 de cereri pe zi):
+
+1. Îți faci cont pe <https://dashboard.api-football.com> și copiezi cheia.
+2. **Docker:** creează un fișier `.env` lângă `docker-compose.yml` cu linia `APIFOOTBALL_KEY=cheia_ta`
+   și rulează `docker compose up -d`. Fișierul `.env` nu intră în git.
+3. **Local:** `dotnet user-secrets set "ApiFootball:Key" "cheia_ta" --project BestBet.Server`.
+
+Un meci costă 3 cereri (clasamentul și cele două loturi), apoi rezultatul stă în memorie 6–12 ore:
+poți analiza zeci de meciuri pe zi. Dacă planul tău nu acoperă sezonul curent, primești mesajul
+API-Football, nu un număr inventat.
+
+### Ce pleacă de pe calculator
+
+Competiția, sezonul și id-urile echipelor, plus cheia (care rămâne pe server, nu ajunge în browser).
+Nu pleacă: capitalul, miza, cotele, jurnalul. Fără cheie, restul aplicației merge neschimbat.
+
+### Ce nu știe
+
+Nu știe formația de start (lotul e cel al sezonului — verifică înainte de miză), tactica, motivația,
+vremea sau știrile de după citirea datelor, și tratează golurile celor două echipe ca independente.
+E o estimare de pornire mai bună decât una scrisă de mână, nu un preț; de aceea trece prin același
+test de avantaj ca orice altceva.
 
 ---
 

@@ -23,6 +23,9 @@ namespace BestBet.Contracts;
 /// <paramref name="Market"/>, because that is the only price actually on offer. Nothing checks that
 /// the two describe the same outcome; that is the caller's job and the UI says so out loud.</param>
 /// <param name="ReferenceSource">What to call the reference on screen, e.g. "Polymarket".</param>
+/// <param name="PreMatch">Each side's expected goals from the pre-match model. When present on a match
+/// that has not started, it replaces <paramref name="ManualOwnProbability"/>: the probability is
+/// priced off these rates for whichever market and side the request names.</param>
 public record AnalyzeRequest(
     MarketOdds Market,
     LiveMatchState? LiveState,
@@ -32,7 +35,13 @@ public record AnalyzeRequest(
     double? ManualOwnProbability = null,
     PaceSettings? Pace = null,
     MarketOdds? ReferenceMarket = null,
-    string? ReferenceSource = null);
+    string? ReferenceSource = null,
+    PreMatchRates? PreMatch = null);
+
+/// <summary>
+/// Expected goals for each side over the whole match, as produced by the pre-match model.
+/// </summary>
+public record PreMatchRates(double HomeExpectedGoals, double AwayExpectedGoals);
 
 /// <summary>
 /// A second opinion on the fair price, from a book that is not the one being bet into.

@@ -47,6 +47,24 @@ builder.Services.AddHttpClient<PolymarketClient>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("BestBet/1.0 (personal decision-support tool)");
 });
 
+// Player and team statistics for the pre-match model. The key is the user's own and is read from
+// configuration (ApiFootball:Key, or the environment variable ApiFootball__Key); it is held by the
+// server and never sent to the browser. Without one, the model is simply unavailable and everything
+// else works as before.
+builder.Services.AddHttpClient<ApiFootballClient>((services, client) =>
+    {
+        // Overridable so the integration can be exercised against a local stand-in without a key.
+        client.BaseAddress = new Uri(
+            services.GetRequiredService<IConfiguration>()["ApiFootball:BaseUrl"] ?? "https://v3.football.api-sports.io/");
+        client.Timeout = TimeSpan.FromSeconds(15);
+    })
+    .AddTypedClient((client, services) => new ApiFootballClient(
+        client,
+        services.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+        services.GetRequiredService<IConfiguration>()["ApiFootball:Key"]));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<PreMatchService>();
+
 var app = builder.Build();
 
 // No migrations yet: the schema is one table and v1 is a local tool. EnsureCreated is the honest
