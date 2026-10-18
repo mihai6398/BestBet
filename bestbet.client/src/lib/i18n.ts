@@ -18,6 +18,19 @@ import type { ParseIssue } from './oddsPaste';
 
 export type Lang = 'ro' | 'en';
 
+/**
+ * The readout for one reading, with whatever was not read left out rather than shown as a zero.
+ *
+ * A league the provider has no xG for is an ordinary outcome now, and "xG 0–0" for it would
+ * contradict the warning beside it while reading as two teams who have created nothing. Dropping
+ * the clause says the same thing without inventing a number — and the warning above it is what
+ * explains why the clause is gone.
+ */
+const readingParts = (parts: ReadonlyArray<string | null>, nothing: string): string => {
+    const said = parts.filter((part): part is string => part !== null);
+    return said.length === 0 ? nothing : said.join(' · ');
+};
+
 const ro = {
     langName: { ro: 'Română', en: 'English' },
 
@@ -256,14 +269,47 @@ const ro = {
         open: 'Monitorizează meciul în timp real ›',
         openNote:
             'Pariurile deschise se recalculează singure, pe măsură ce meciul merge mai departe. ' +
-            'Datele vin din fila Sofascore pe care o ai deja deschisă.',
+            'Lipești linkul meciului și nu mai ai nimic de făcut.',
         title: 'Monitorizare în timp real',
         hide: 'Ascunde',
         why:
+            'Lipește linkul meciului de pe FotMob sau de pe Sofascore, apasă o dată, și aplicația ' +
+            'ia singură minutul, scorul și xG-ul la fiecare câteva secunde. Nu trebuie să lași ' +
+            'nicio filă deschisă.',
+
+        // --- The link, which is the way in for anything FotMob covers -------
+        linkLabel: 'Link de meci sau ID',
+        linkPlaceholder: 'https://www.fotmob.com/match/5881191',
+        linkHint:
+            'Merge linkul de pe FotMob (de acolo vin datele) și linkul de pe Sofascore (meciul e ' +
+            'căutat pe FotMob după numele echipelor). Merge și doar ID-ul de meci de pe FotMob.',
+        linkStart: 'Urmărește meciul',
+        linkStop: 'Oprește',
+        linkInvalid:
+            'Nu pare un link de meci. Copiază adresa din bara browserului, de pe pagina meciului de ' +
+            'pe FotMob sau de pe Sofascore.',
+        linkWorking: 'Se caută meciul…',
+        linkFound: (provider: string, label: string) => `${label} · citit de pe ${provider}`,
+        linkNoXg:
+            'Meciul a fost găsit, dar furnizorul nu calculează xG pentru liga asta — iar fără xG ' +
+            'modelul nu are pe ce să ruleze. Pentru meciul ăsta folosește semnul de carte de mai ' +
+            'jos sau lipește statisticile de mână.',
+        linkFinished:
+            'Meciul s-a terminat. Citirile nu se mai schimbă; închide monitorizarea sau pune alt meci.',
+        linkNotStarted:
+            'Meciul nu a început încă. Nu există minut, scor sau xG de citit — revino după fluier.',
+        linkStale:
+            'Furnizorul nu a mai răspuns de o vreme. Numerele de mai jos sunt dintr-un minut care ' +
+            'a trecut.',
+
+        // --- The bookmarklet, which stays the only way in for the rest ------
+        fallback: 'Nu merge prin link? Monitorizare din fila ta de Sofascore ›',
+        fallbackWhy:
             'Sofascore refuză orice cerere care nu vine dintr-un browser real — răspunde 403 inclusiv ' +
-            'la robots.txt — deci serverul acestei aplicații nu are cum să întrebe singur. Browserul ' +
-            'tău are voie, fiindcă acolo pagina e deja deschisă. Semnul de carte de mai jos citește ' +
-            'pagina pe care o ai în față și o trimite încoace; nu se cere nimic în plus de la ei.',
+            'la robots.txt — deci serverul acestei aplicații nu are cum să întrebe singur, iar FotMob ' +
+            'nu are xG la toate ligile. Browserul tău are voie, fiindcă acolo pagina e deja deschisă. ' +
+            'Semnul de carte de mai jos citește pagina pe care o ai în față și o trimite încoace; nu ' +
+            'se cere nimic în plus de la ei.',
         step1: 'Trage semnul ăsta în bara de favorite (sau copiază-l și fă-ți un favorit cu el):',
         bookmarkName: 'BestBet: monitorizează',
         copy: 'Copiază',
@@ -275,13 +321,26 @@ const ro = {
             `Lasă fila deschisă. Trimite o citire la fiecare ${seconds} de secunde, iar pariurile ` +
             'deschise din acel meci se recalculează singure.',
         watching: 'Monitorizare activă',
-        waiting: 'Se așteaptă prima citire din browser…',
+        waiting: 'Se așteaptă prima citire…',
         lastReading: (seconds: number) =>
             seconds < 60
                 ? `Ultima citire acum ${seconds} s`
                 : `Ultima citire acum ${Math.round(seconds / 60)} min`,
-        reading: (minute: number, home: number, away: number, xgHome: number, xgAway: number) =>
-            `minutul ${minute} · ${home}–${away} · xG ${xgHome}–${xgAway}`,
+        reading: (
+            minute: number | null,
+            home: number | null,
+            away: number | null,
+            xgHome: number | null,
+            xgAway: number | null,
+        ) =>
+            readingParts(
+                [
+                    minute === null ? null : `minutul ${minute}`,
+                    home === null || away === null ? null : `${home}–${away}`,
+                    xgHome === null || xgAway === null ? null : `xG ${xgHome}–${xgAway}`,
+                ],
+                'nimic de citit în citirea asta',
+            ),
         unknownMatch: 'meci nerecunoscut',
         unusable:
             'Citirea a ajuns, dar nu conține tot ce trebuie. Pe Sofascore mergi la fila Statistici ' +
@@ -290,12 +349,14 @@ const ro = {
             'Citirea e veche. Fila s-a închis, a adormit, sau ai oprit semnul din favorite. Până ' +
             'revine, numerele de mai jos sunt dintr-un minut care a trecut.',
         tracking: (labels: string) => `Se recalculează: ${labels}`,
-        nothingTracked:
-            'Niciun pariu deschis din meciul ăsta. Citirea actualizează formularul, dar nu are ce ' +
-            'recalcula.',
+        // Says nothing about the form on purpose: a reading without xG does not reach it, and this
+        // line sits right under the warning that explains why.
+        nothingTracked: 'Niciun pariu deschis din meciul ăsta, deci nu e nimic de recalculat.',
         clear: 'Uită citirea',
         privacy:
-            'Citirea circulă doar între browserul tău și aplicația de pe calculatorul tău. Nu se ' +
+            'Prin semnul de carte, citirea circulă doar între browserul tău și aplicația de pe ' +
+            'calculatorul tău. Prin link, din calculator pleacă doar ID-ul meciului, către furnizor — ' +
+            'nimic altceva: nici banca, nici miza, nici pozițiile salvate. Oricum, citirea nu se ' +
             'salvează nicăieri și dispare când oprești aplicația.',
         failed: 'Citirea nu a putut fi luată.',
     },
@@ -979,15 +1040,49 @@ const en: Dictionary = {
     monitor: {
         open: 'Watch the match live ›',
         openNote:
-            'Open bets re-price themselves as the match moves on. The readings come from the ' +
-            'Sofascore tab you already have open.',
+            'Open bets re-price themselves as the match moves on. Paste the match link and there is ' +
+            'nothing else to do.',
         title: 'Live monitoring',
         hide: 'Hide',
         why:
+            'Paste the match link from FotMob or from Sofascore, press once, and the app fetches the ' +
+            'minute, the score and the xG itself every few seconds. No tab has to stay open.',
+
+        // --- The link, which is the way in for anything FotMob covers -------
+        linkLabel: 'Match link or id',
+        linkPlaceholder: 'https://www.fotmob.com/match/5881191',
+        linkHint:
+            'A FotMob link works (that is where the numbers come from) and so does a Sofascore link ' +
+            '(the match is then found at FotMob by the team names). A bare FotMob match id works too.',
+        linkStart: 'Watch this match',
+        linkStop: 'Stop',
+        linkInvalid:
+            'That does not look like a match link. Copy the address out of your browser\u2019s bar, ' +
+            'from the match page on FotMob or on Sofascore.',
+        linkWorking: 'Looking for the match…',
+        linkFound: (provider: string, label: string) => `${label} · read from ${provider}`,
+        linkNoXg:
+            'The match was found, but the provider does not compute xG for this league — and ' +
+            'without xG the model has nothing to run on. For this match use the bookmarklet below, ' +
+            'or paste the stats by hand.',
+        linkFinished:
+            'The match is over. The readings will not change again; switch monitoring off or point ' +
+            'it at another match.',
+        linkNotStarted:
+            'The match has not kicked off. There is no minute, score or xG to read yet — come ' +
+            'back after the whistle.',
+        linkStale:
+            'The provider has not answered for a while. The numbers below are from a minute that ' +
+            'has passed.',
+
+        // --- The bookmarklet, which stays the only way in for the rest ------
+        fallback: 'Link not an option? Monitor from your own Sofascore tab ›',
+        fallbackWhy:
             'Sofascore refuses any request that is not a real browser — it answers 403 down to ' +
-            'robots.txt — so this app\u2019s server cannot ask on its own. Your browser is allowed, ' +
-            'because that is where the page is already open. The bookmarklet below reads the page in ' +
-            'front of you and sends it here; nothing extra is requested from them.',
+            'robots.txt — so this app\u2019s server cannot ask on its own, and FotMob does not ' +
+            'have xG for every league. Your browser is allowed, because that is where the page is ' +
+            'already open. The bookmarklet below reads the page in front of you and sends it here; ' +
+            'nothing extra is requested from them.',
         step1: 'Drag this onto your bookmarks bar (or copy it and make a bookmark of it):',
         bookmarkName: 'BestBet: watch',
         copy: 'Copy',
@@ -999,11 +1094,24 @@ const en: Dictionary = {
             `Leave the tab open. It sends a reading every ${seconds} seconds, and the open bets on ` +
             'that match re-price themselves.',
         watching: 'Monitoring on',
-        waiting: 'Waiting for the first reading from the browser…',
+        waiting: 'Waiting for the first reading…',
         lastReading: (seconds: number) =>
             seconds < 60 ? `Last reading ${seconds}s ago` : `Last reading ${Math.round(seconds / 60)} min ago`,
-        reading: (minute: number, home: number, away: number, xgHome: number, xgAway: number) =>
-            `minute ${minute} · ${home}–${away} · xG ${xgHome}–${xgAway}`,
+        reading: (
+            minute: number | null,
+            home: number | null,
+            away: number | null,
+            xgHome: number | null,
+            xgAway: number | null,
+        ) =>
+            readingParts(
+                [
+                    minute === null ? null : `minute ${minute}`,
+                    home === null || away === null ? null : `${home}–${away}`,
+                    xgHome === null || xgAway === null ? null : `xG ${xgHome}–${xgAway}`,
+                ],
+                'nothing to read in this one',
+            ),
         unknownMatch: 'match not recognised',
         unusable:
             'A reading arrived but it does not carry everything needed. On Sofascore, go to the ' +
@@ -1012,13 +1120,14 @@ const en: Dictionary = {
             'The reading is old. The tab closed, went to sleep, or the bookmark was switched off. ' +
             'Until it comes back, the numbers below are from a minute that has passed.',
         tracking: (labels: string) => `Re-pricing: ${labels}`,
-        nothingTracked:
-            'No open bet on this match. The reading still fills the form, but there is nothing to ' +
-            're-price.',
+        nothingTracked: 'No open bet on this match, so there is nothing to re-price.',
         clear: 'Forget the reading',
         privacy:
-            'The reading only travels between your browser and the app on your own machine. It is ' +
-            'not saved anywhere and goes when the app stops.',
+            'Through the bookmarklet, the reading only travels between your browser and the app on ' +
+            'your own machine. Through a link, the only thing that leaves this machine is the match ' +
+            'id, and it goes to the provider — nothing else does: not the bankroll, not the stake, ' +
+            'not a saved position. Either way the reading is not stored anywhere and goes when the ' +
+            'app stops.',
         failed: 'The reading could not be fetched.',
     },
 

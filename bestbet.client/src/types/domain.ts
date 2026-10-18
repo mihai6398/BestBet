@@ -201,6 +201,49 @@ export interface LiveFeedState {
     source: string | null;
 }
 
+/** One extra stat as the provider printed it. Mirrors `StatRow` in lib/statsPaste.ts. */
+export interface ProviderStatRow {
+    /** The client's own stat key, so the row can be named in the reader's language. */
+    id: string;
+    label: string;
+    home: string;
+    away: string;
+}
+
+/**
+ * A reading the server fetched from a provider that answers it, rather than one pushed in from the
+ * user's browser.
+ *
+ * Deliberately the same fields as `ParsedStats`: the bookmarklet route sends raw page text and the
+ * browser parses it, this route has the server do the equivalent against a JSON API, and nothing
+ * downstream can tell the two apart. See lib/providerFeed.ts for why both routes exist.
+ */
+export interface ProviderReading {
+    /** Which site answered, so the panel can say where the numbers came from. */
+    provider: string;
+    matchId: string;
+    /** A link back to the match page, so this can be checked rather than trusted. */
+    url: string | null;
+    matchLabel: string | null;
+    minute: number | null;
+    goalsHome: number | null;
+    goalsAway: number | null;
+    /** Null for a league the provider does not compute xG for — which is most of the small ones. */
+    xgHome: number | null;
+    xgAway: number | null;
+    extras: ProviderStatRow[];
+    /**
+     * The fields an analysis needs and the provider did not supply ('minute', 'xgHome', 'xgAway').
+     * Non-empty means this match cannot be watched this way and the bookmarklet is the only route.
+     */
+    missing: string[];
+    ongoing: boolean;
+    finished: boolean;
+    readUtc: string;
+    /** How old the reading already was when it left the server, which is non-zero when it was cached. */
+    ageSeconds: number;
+}
+
 export interface RepriceRequest {
     liveState: LiveMatchState;
     pace?: PaceSettings;

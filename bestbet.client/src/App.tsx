@@ -27,6 +27,7 @@ import {
 import type { LiveFormState, OddsFormState, PaceFormState, ReferenceState } from './lib/forms';
 import { LANGUAGES, useLanguage } from './lib/i18n';
 import { POLL_INTERVAL_SECONDS, sameMatch } from './lib/liveFeed';
+import { readingToParsedStats } from './lib/providerFeed';
 import { parseStatsPaste } from './lib/statsPaste';
 import type { QuickImportResult } from './lib/quickImport';
 import type {
@@ -37,6 +38,7 @@ import type {
     PositionOutcome,
     PositionsSummary,
     PreMatchRates,
+    ProviderReading,
     RepricedPosition,
 } from './types/domain';
 
@@ -84,6 +86,20 @@ function App() {
     const [watching, setWatching] = useLocalStorage('bestbet.watching', false);
     const [feed, setFeed] = useState<LiveFeedState | null>(null);
     const [feedError, setFeedError] = useState<string | null>(null);
+
+    // The other route in: a match link the server fetches itself, so no tab has to stay open. See
+    // lib/providerFeed.ts. Persisted because monitoring survives a reload and it would be a poor
+    // joke to ask for the link again every time.
+    const [providerMatch, setProviderMatch] = useLocalStorage('bestbet.providerMatch', '');
+    const [providerReading, setProviderReading] = useState<ProviderReading | null>(null);
+    const [providerResolving, setProviderResolving] = useState(false);
+
+    // When the last fetched reading landed here, so its age keeps growing while the provider is not
+    // answering. The server says how old the reading already was when it left (it may have come out
+    // of a short cache), and this adds the time since — which measures staleness without either
+    // side having to trust the other's clock.
+    const [providerFetchedAt, setProviderFetchedAt] = useState<number | null>(null);
+    const [tick, setTick] = useState(() => Date.now());
 
     // Which reading has already been written into the form, so a poll returning the same one is a
     // no-op rather than a fight with whatever the user is typing.
@@ -252,7 +268,50 @@ function App() {
     // --- Watching a match that is still being played ------------------------
 
     const feedText = feed?.text ?? null;
-    const feedParsed = useMemo(() => (feedText ? parseStatsPaste(feedText) : null), [feedText]);
+    const pushParsed = useMemo(() => (feedText ? parseStatsPaste(feedText) : null), [feedText]);
+
+    /**
+     * Which of the two routes is in force.
+     *
+     * The link wins whenever one is set. Not a close call: a link is the user naming the match they
+     * want watched, while a push is whatever page a bookmarklet was last pressed on — possibly a
+     * different match, possibly a tab that has been asleep for an hour. Letting both through would
+     * leave the form flipping between two minutes with nothing on screen to say why.
+     *
+     * Setting a link therefore also means "stop listening to the bookmarklet", and clearing it hands
+     * the channel back. That is what makes a league without xG at the provider workable: the user
+     * presses Stop, and the push they were already sending takes over.
+     */
+    const via: 'provider' | 'push' | null =
+        providerMatch !== '' && providerReading ? 'provider' : feed?.receivedUtc ? 'push' : null;
+
+    const feedParsed = useMemo(
+        () => (via === 'provider' && providerReading ? readingToParsedStats(providerReading) : pushParsed),
+        [via, providerReading, pushParsed],
+    );
+
+    /**
+     * How old the reading in force is.
+     *
+     * The push route is timed by the server, which is the only clock that saw the reading arrive.
+     * The fetched route is timed from when it landed here plus the age the server reported, so the
+     * number keeps climbing through a provider that has stopped answering rather than freezing at
+     * whatever the last successful poll said.
+     */
+    const readingAge: number | null =
+        via === 'provider' && providerReading && providerFetchedAt !== null
+            ? providerReading.ageSeconds + (tick - providerFetchedAt) / 1000
+            : via === 'push'
+              ? feed?.ageSeconds ?? null
+              : null;
+
+    /** Identifies the reading in force, so an unchanged one is not applied twice. */
+    const readingKey =
+        via === 'provider' && providerReading
+            ? `provider:${providerReading.matchId}:${providerReading.readUtc}`
+            : via === 'push' && feed?.receivedUtc
+              ? `push:${feed.receivedUtc}`
+              : null;
 
     const tracked = useMemo(
         () =>
@@ -309,6 +368,52 @@ function App() {
         };
     }, [watching, t]);
 
+    /**
+     * Asks our own API to fetch the match behind the pasted link, on the same interval the push
+     * route is polled at. One interval for both: the two routes are one channel to everything
+     * downstream, and two cadences would be two sets of timings to reason about for no gain. The
+     * provider is not asked this often either way — the server holds a reading for a few seconds in
+     * front of it, so a poll that is too eager costs nothing outside this machine.
+     *
+     * The tick is advanced whether the poll worked or not. That is what makes the staleness warning
+     * fire when a provider goes quiet, instead of the age freezing at the last good answer and the
+     * numbers going on looking current.
+     */
+    useEffect(() => {
+        // Nothing is cleared on the way out. A reading left behind cannot be mistaken for a live one
+        // — `via` only looks at it while a link is set — and the handler that changes the link
+        // clears it there, at the event that caused it, rather than from here.
+        if (!watching || providerMatch === '') return undefined;
+
+        let cancelled = false;
+
+        const read = async () => {
+            setProviderResolving(true);
+            try {
+                const next = await analysisClient.providerReading(providerMatch);
+                if (cancelled) return;
+                setProviderReading(next);
+                setProviderFetchedAt(Date.now());
+                setFeedError(null);
+            } catch (e) {
+                if (!cancelled) setFeedError(e instanceof Error ? e.message : t.monitor.failed);
+            } finally {
+                if (!cancelled) {
+                    setProviderResolving(false);
+                    setTick(Date.now());
+                }
+            }
+        };
+
+        void read();
+        const timer = window.setInterval(() => void read(), POLL_INTERVAL_SECONDS * 1000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+        };
+    }, [watching, providerMatch, t]);
+
     /** The reading as the model wants it, or null while it is missing something the model needs. */
     const feedLiveState = useMemo<LiveMatchState | null>(() => {
         if (!feedParsed || feedParsed.missing.length > 0) return null;
@@ -325,10 +430,10 @@ function App() {
 
     /** Writes a new reading into the form, once. */
     useEffect(() => {
-        if (!watching || !feed?.receivedUtc || !feedLiveState) return;
-        if (appliedReading.current === feed.receivedUtc) return;
+        if (!watching || !readingKey || !feedLiveState) return;
+        if (appliedReading.current === readingKey) return;
 
-        appliedReading.current = feed.receivedUtc;
+        appliedReading.current = readingKey;
 
         // Synchronising with an external system — a reading that arrived from another browser tab —
         // is what effects are for, and there is no event here to hang it on instead.
@@ -348,7 +453,7 @@ function App() {
             // eslint-disable-next-line react/set-state-in-effect
             setOdds((current) => (current.matchLabel === '' ? { ...current, matchLabel: label } : current));
         }
-    }, [watching, feed?.receivedUtc, feedLiveState, feedParsed?.matchLabel, setLive, setOdds]);
+    }, [watching, readingKey, feedLiveState, feedParsed?.matchLabel, setLive, setOdds]);
 
     /**
      * Re-prices the open bets on the match the reading came from.
@@ -358,9 +463,9 @@ function App() {
      * clock, a saved bet would get a confident number about a game it has nothing to do with.
      */
     useEffect(() => {
-        if (!watching || !feed?.receivedUtc || !feedLiveState || tracked.length === 0) return;
+        if (!watching || !readingKey || !feedLiveState || tracked.length === 0) return;
 
-        const reading = `${feed.receivedUtc}|${tracked.map((position) => position.id).join(',')}`;
+        const reading = `${readingKey}|${tracked.map((position) => position.id).join(',')}`;
         if (repricedReading.current === reading) return;
         repricedReading.current = reading;
 
@@ -377,7 +482,7 @@ function App() {
                 }
             }),
         );
-    }, [watching, feed?.receivedUtc, feedLiveState, tracked, t]);
+    }, [watching, readingKey, feedLiveState, tracked, t]);
 
     const blocked = batchBlockedBy(live);
     const blockedReason =
@@ -509,14 +614,32 @@ function App() {
                     <LiveMonitorPanel
                         feed={feed}
                         parsed={feedParsed}
+                        ageSeconds={readingAge}
+                        via={via}
                         watching={watching}
                         onWatchingChange={setWatching}
+                        match={providerMatch}
+                        onMatchChange={(next) => {
+                            setProviderMatch(next);
+                            // Switching routes mid-match means the next reading is a different one
+                            // by definition, so the guards have to forget what they last applied or
+                            // the first reading on the new route would be skipped as a repeat.
+                            appliedReading.current = null;
+                            repricedReading.current = null;
+                            setProviderReading(null);
+                            setProviderFetchedAt(null);
+                            setFeedError(null);
+                        }}
+                        reading={providerReading}
+                        resolving={providerResolving}
                         tracked={tracked.map((position) => position.marketLabel || position.selection)}
                         error={feedError}
                         onClear={() => {
                             void analysisClient.clearLiveFeed().catch(() => {});
                             appliedReading.current = null;
                             repricedReading.current = null;
+                            setProviderReading(null);
+                            setProviderFetchedAt(null);
                             setFeed((current) =>
                                 current
                                     ? { ...current, text: null, receivedUtc: null, ageSeconds: null, source: null }

@@ -949,3 +949,28 @@ th.numeric {
     background: var(--bad-bg);
     color: var(--bad);
 }
+
+/* The link and its button on one line: pressing it is the whole instruction, the way dragging is
+   the whole instruction for the bookmarklet below. */
+.monitor-link {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.6rem;
+    margin: 0.6rem 0 0.4rem;
+}
+
+.monitor-link button {
+    flex: 0 0 auto;
+}
+
+/* Set apart from the link above it, because it answers a different question. */
+.monitor-fallback {
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+}
+
+.monitor-fallback-open {
+    display: block;
+    margin-top: 0.9rem;
+}
