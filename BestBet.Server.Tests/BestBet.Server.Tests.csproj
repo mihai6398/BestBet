@@ -22,6 +22,13 @@
     <ProjectReference Include="..\BestBet.Server\BestBet.Server.csproj" />
   </ItemGroup>
 
+  <!-- Responses captured from the providers' real APIs, read from disk by the mapping tests. On
+       disk rather than inlined because the point of them is that they are untouched: a hand-written
+       JSON literal would quietly drift into the shape the parser already handles. -->
+  <ItemGroup>
+    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
