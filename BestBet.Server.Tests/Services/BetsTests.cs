@@ -78,12 +78,12 @@ public class ClvMathTests
     }
 }
 
-public class PositionServiceSummaryTests
+public class BetServiceSummaryTests
 {
-    private static PositionDto Position(
+    private static BetDto Position(
         double entryOdds,
         double? closingOdds,
-        PositionOutcome outcome = PositionOutcome.Pending,
+        BetStatus outcome = BetStatus.Open,
         double stake = 10.0)
         => new(
             Id: 0,
@@ -110,25 +110,31 @@ public class PositionServiceSummaryTests
             GoalsAway: 0,
             ClosingDecimalOdds: closingOdds,
             ClosingSiblingOdds: [],
-            Outcome: outcome,
+            Status: outcome,
             Notes: null,
             ClvPercent: ClvMath.ClvPercent(entryOdds, closingOdds),
             BeatTheClose: ClvMath.BeatTheClose(entryOdds, closingOdds),
             ClvProbabilityPoints: null,
             ProfitLoss: outcome switch
             {
-                PositionOutcome.Won => stake * (entryOdds - 1.0),
-                PositionOutcome.Lost => -stake,
-                PositionOutcome.Void => 0.0,
+                BetStatus.Won => stake * (entryOdds - 1.0),
+                BetStatus.Lost => -stake,
+                BetStatus.Void => 0.0,
                 _ => null,
-            });
+            },
+            Payout: null,
+            SettledUtc: null,
+            Sport: null,
+            Competition: null,
+            Bookmaker: null,
+            EventStartUtc: null);
 
     [Fact]
     public void An_empty_log_says_there_is_nothing_to_learn_from_yet()
     {
-        var summary = PositionService.Summarise([]);
+        var summary = BetService.Summarise([]);
 
-        Assert.Equal(0, summary.TotalPositions);
+        Assert.Equal(0, summary.TotalBets);
         Assert.Null(summary.BeatCloseRate);
         Assert.Contains("No closing prices recorded yet", summary.Readout);
     }
@@ -136,21 +142,21 @@ public class PositionServiceSummaryTests
     [Fact]
     public void Rows_without_a_closing_price_are_left_out_of_the_CLV_rate()
     {
-        var summary = PositionService.Summarise([
+        var summary = BetService.Summarise([
             Position(2.10, 2.00),
             Position(2.10, null),
             Position(2.10, null),
         ]);
 
-        Assert.Equal(3, summary.TotalPositions);
-        Assert.Equal(1, summary.PositionsWithClosingPrice);
+        Assert.Equal(3, summary.TotalBets);
+        Assert.Equal(1, summary.BetsWithClosingPrice);
         Assert.Equal(1.0, summary.BeatCloseRate);
     }
 
     [Fact]
     public void A_small_sample_is_reported_as_a_small_sample_rather_than_as_evidence()
     {
-        var summary = PositionService.Summarise(
+        var summary = BetService.Summarise(
             Enumerable.Range(0, 10).Select(_ => Position(2.10, 2.00)).ToList());
 
         Assert.Equal(1.0, summary.BeatCloseRate);
@@ -164,9 +170,9 @@ public class PositionServiceSummaryTests
             .Select(i => Position(2.10, i < 21 ? 2.00 : 2.20))   // 21 of 35 = 60%
             .ToList();
 
-        var summary = PositionService.Summarise(positions);
+        var summary = BetService.Summarise(positions);
 
-        Assert.Equal(21, summary.PositionsBeatingClose);
+        Assert.Equal(21, summary.BetsBeatingClose);
         Assert.Equal(0.6, summary.BeatCloseRate!.Value, 10);
         Assert.Contains("finding real prices", summary.Readout);
     }
@@ -178,7 +184,7 @@ public class PositionServiceSummaryTests
             .Select(i => Position(2.10, i < 16 ? 2.00 : 2.20))   // 16 of 40 = 40%
             .ToList();
 
-        var summary = PositionService.Summarise(positions);
+        var summary = BetService.Summarise(positions);
 
         Assert.Equal(0.4, summary.BeatCloseRate!.Value, 10);
         Assert.Contains("points at the estimates", summary.Readout);
@@ -187,27 +193,27 @@ public class PositionServiceSummaryTests
     [Fact]
     public void Profit_and_loss_only_counts_settled_positions()
     {
-        var summary = PositionService.Summarise([
-            Position(2.50, 2.40, PositionOutcome.Won, stake: 20.0),   // +30
-            Position(2.00, 2.10, PositionOutcome.Lost, stake: 20.0),  // -20
-            Position(2.00, 2.10, PositionOutcome.Void, stake: 20.0),  //   0
-            Position(2.00, null, PositionOutcome.Pending, stake: 20.0),
+        var summary = BetService.Summarise([
+            Position(2.50, 2.40, BetStatus.Won, stake: 20.0),   // +30
+            Position(2.00, 2.10, BetStatus.Lost, stake: 20.0),  // -20
+            Position(2.00, 2.10, BetStatus.Void, stake: 20.0),  //   0
+            Position(2.00, null, BetStatus.Open, stake: 20.0),
         ]);
 
-        Assert.Equal(3, summary.SettledPositions);
+        Assert.Equal(3, summary.SettledBets);
         Assert.Equal(60.0, summary.TotalStaked, 10);
         Assert.Equal(10.0, summary.TotalProfitLoss, 10);
     }
 }
 
-public class PositionServiceStorageTests
+public class BetServiceStorageTests
 {
     private static BestBetDbContext NewDb()
         => new(new DbContextOptionsBuilder<BestBetDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static SavePositionRequest SampleSave() => new(
+    private static SaveBetRequest SampleSave() => new(
         MatchLabel: "Sunderland - Arsenal",
         MarketKind: MarketKind.NextGoal,
         MarketLabel: "Primul gol: 2",
@@ -234,7 +240,7 @@ public class PositionServiceStorageTests
     public async Task A_saved_position_comes_back_with_its_entry_snapshot_intact()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
 
         var saved = await service.SaveAsync(SampleSave());
 
@@ -242,7 +248,7 @@ public class PositionServiceStorageTests
         Assert.Equal("Sunderland - Arsenal", saved.MatchLabel);
         Assert.Equal([3.20, 4.50], saved.EntrySiblingOdds);
         Assert.Equal(45, saved.MinutePlayed);
-        Assert.Equal(PositionOutcome.Pending, saved.Outcome);
+        Assert.Equal(BetStatus.Open, saved.Status);
         Assert.Null(saved.ClvPercent);
     }
 
@@ -250,34 +256,34 @@ public class PositionServiceStorageTests
     public async Task Filling_in_the_closing_price_later_is_what_produces_CLV()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
         var saved = await service.SaveAsync(SampleSave());
 
-        var updated = await service.UpdateAsync(saved.Id, new UpdatePositionRequest(
+        var updated = await service.UpdateAsync(saved.Id, new UpdateBetRequest(
             ClosingDecimalOdds: 1.50,
             ClosingSiblingOdds: [3.60, 5.00],
-            Outcome: PositionOutcome.Won));
+            Status: BetStatus.Won));
 
         Assert.NotNull(updated);
         Assert.Equal(1.50, updated!.ClosingDecimalOdds);
         Assert.True(updated.BeatTheClose);                       // 1.60 taken, closed 1.50
         Assert.Equal(1.60 / 1.50 - 1.0, updated.ClvPercent!.Value, 10);
         Assert.NotNull(updated.ClvProbabilityPoints);
-        Assert.Equal(PositionOutcome.Won, updated.Outcome);
+        Assert.Equal(BetStatus.Won, updated.Status);
     }
 
     [Fact]
     public async Task A_partial_update_leaves_the_fields_it_was_not_given_alone()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
         var saved = await service.SaveAsync(SampleSave());
 
-        await service.UpdateAsync(saved.Id, new UpdatePositionRequest(ClosingDecimalOdds: 1.50));
-        var afterSecond = await service.UpdateAsync(saved.Id, new UpdatePositionRequest(Outcome: PositionOutcome.Lost));
+        await service.UpdateAsync(saved.Id, new UpdateBetRequest(ClosingDecimalOdds: 1.50));
+        var afterSecond = await service.UpdateAsync(saved.Id, new UpdateBetRequest(Status: BetStatus.Lost));
 
         Assert.Equal(1.50, afterSecond!.ClosingDecimalOdds);
-        Assert.Equal(PositionOutcome.Lost, afterSecond.Outcome);
+        Assert.Equal(BetStatus.Lost, afterSecond.Status);
         Assert.Equal(saved.Notes, afterSecond.Notes);
     }
 
@@ -285,7 +291,7 @@ public class PositionServiceStorageTests
     public async Task The_log_reads_newest_first()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
 
         var first = await service.SaveAsync(SampleSave() with { MatchLabel = "First" });
         var second = await service.SaveAsync(SampleSave() with { MatchLabel = "Second" });
@@ -301,9 +307,9 @@ public class PositionServiceStorageTests
     public async Task Updating_or_deleting_a_row_that_is_not_there_reports_that_rather_than_throwing()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
 
-        Assert.Null(await service.UpdateAsync(404, new UpdatePositionRequest(Outcome: PositionOutcome.Won)));
+        Assert.Null(await service.UpdateAsync(404, new UpdateBetRequest(Status: BetStatus.Won)));
         Assert.False(await service.DeleteAsync(404));
     }
 
@@ -311,7 +317,7 @@ public class PositionServiceStorageTests
     public async Task A_deleted_row_is_gone_from_the_log()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
         var saved = await service.SaveAsync(SampleSave());
 
         Assert.True(await service.DeleteAsync(saved.Id));
