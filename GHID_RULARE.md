@@ -373,12 +373,28 @@ Trei corecții, fiecare vizibilă în rezultat, toate pornite din start:
 
 | Corecție | Ce face | De ce |
 |---|---|---|
-| **Regresie la medie** | Trage ritmul observat spre un meci mediu (1.35 xG per echipă) | Un ritm citit din 36 de minute e o estimare pe eșantion mic, nu un fapt. Face aproape toată treaba: singură, duce *Peste 6.5* de la 76% la 50% |
+| **Regresie la medie** | Trage ritmul observat spre ce produc de obicei cele două echipe: cifrele din panoul pre-meci (§5b), dacă le folosești, altfel un meci mediu de ligă (1.35 xG per echipă) | Un ritm citit din 36 de minute e o estimare pe eșantion mic, nu un fapt. Face aproape toată treaba: singură, duce *Peste 6.5* de la 76% la 50% |
 | **Starea scorului** | Echipa care conduce atacă mai puțin, cea care urmărește mai mult | Efectul crește spre finalul meciului, deci e scalat după cât s-a jucat |
 | **Recență** | Cântărește ce face meciul *acum* peste media lui | Prinde jocul care tocmai s-a deschis, sau care a murit |
 
 Pe meciul de mai sus, cu toate pornite: ritm **6.70 → 4.29 xG/90**, estimare **47.5%**, edge
 **−2.5pp**, verdict **SKIP**. Adică răspunsul corect.
+
+### De ce contează cifrele pre-meci în timpul meciului
+
+Fără ele, ambele echipe sunt trase spre **aceeași** medie de 1.35, oricine ar juca. Pentru o echipă
+de top asta e o greșeală sistematică: un Bayern care chiar merge pe 2.55 goluri la 90 de minute e
+tras, la minutul 30, până la 1.83 — adică tratat ca o echipă de mijlocul clasamentului, iar modelul
+înclină spre *Sub* tocmai la meciurile unde *Peste* iese cel mai des.
+
+Dacă rulezi panoul pre-meci pentru meciul respectiv și apeși **Folosește în analiză**, cifrele lui
+rămân în uz și după fluier: ritmul fiecărei echipe e tras spre **propriile** goluri așteptate. Pe
+același exemplu, Bayern rămâne la 2.58, iar *Peste 3.5* urcă de la 30% la 38%. Merge și invers: două
+echipe defensive pe un început mai animat sunt trase în jos mai tare decât de media ligii. Nu e o
+regulă „pune *Peste* la echipele mari", ci „crede ce știi despre echipele astea".
+
+Cardul rezultatului spune mereu spre ce a fost tras ritmul: *cifrele pre-meci ale echipelor* sau *o
+medie de ligă*. Panoul pre-meci are nevoie de cheia API-Football (§5b); fără ea rămâne media de ligă.
 
 ### Fereastra recentă
 
@@ -664,7 +680,7 @@ l-a primit primește `401`.
 dotnet test
 ```
 
-321 de teste, sub o secundă. Printre ele, în
+335 de teste, sub o secundă. Printre ele, în
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`, exemplele numerice din specificație —
 acelea sunt definiția lui „matematica e încă bună”. Dacă vreunul pică, se repară întâi el.
 

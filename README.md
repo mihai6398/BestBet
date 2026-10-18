@@ -68,7 +68,7 @@ dotnet test
 npm --prefix bestbet.client test
 ```
 
-321 server tests, including the worked examples from the specification pinned as an acceptance suite in
+335 server tests, including the worked examples from the specification pinned as an acceptance suite in
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`. Those are the definition of "the maths
 is still right" — if one of them drifts, fix that before adding anything.
 
@@ -96,8 +96,13 @@ both directions. Barcelona 3-1 up at minute 36 on 2.38 xG projects 5.95 over nin
 6.5 at 76% against a market at 50%; a match that has been quiet for half an hour gets priced as if it
 will stay quiet. `PaceModel` corrects for three things, all on by default and all switchable:
 
-- **Shrinkage** towards a league-average match, weighted by how much has actually been played. This
-  does most of the work — on the match above it alone takes Over 6.5 from 76% to 50%.
+- **Shrinkage** towards what these two teams usually produce, weighted by how much has actually been
+  played. This does most of the work — on the match above it alone takes Over 6.5 from 76% to 50%.
+  The target is each side's expected goals from the pre-match model when you have run it for this
+  match, and a league-average 1.35 per team when you have not. A single league-wide number treats
+  every side as mid-table, so it drags a top attack's genuine pace down and leans towards the Under
+  on exactly the matches where the Over is most often right; the teams' own numbers do not, and they
+  pull two defensive sides down harder in the same way.
 - **Score state**: the side protecting a lead attacks less, the side chasing attacks more, and both
   effects grow as the clock runs down.
 - **Recency**, when you supply xG for a recent window (a provider's per-half split). This is what
