@@ -106,11 +106,12 @@ describe('sending the pre-match model', () => {
         expect(request.liveState).toBeNull();
     });
 
-    it('is ignored for a live match, which is priced from its own xG', () => {
+    it('goes along with a live match, as what its pace is pulled towards', () => {
         const request = buildAnalyzeRequest(totals(), live(), 100, defaultPaceForm(), null, rates);
 
-        expect(request.preMatch).toBeUndefined();
+        expect(request.preMatch).toEqual(rates);
         expect(request.liveState).not.toBeNull();
+        expect(request.manualOwnProbability).toBeUndefined();
     });
 
     it('leaves the typed probability alone when no model is in use', () => {

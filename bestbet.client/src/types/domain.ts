@@ -91,6 +91,11 @@ export interface PaceAdjustment {
     adjustedRateTotal: number;
     /** Below 1 the pace was corrected down, above 1 up. */
     paceMultiplier: number;
+    /** Goals per match each side was pulled towards; null when shrinkage did not run. */
+    priorGoalsHome: number | null;
+    priorGoalsAway: number | null;
+    /** True when those came from this match's pre-match model rather than the league average. */
+    priorFromPreMatch: boolean;
 }
 
 export interface ModelDiagnostics {
@@ -247,6 +252,8 @@ export interface ProviderReading {
 export interface RepriceRequest {
     liveState: LiveMatchState;
     pace?: PaceSettings;
+    /** The match's pre-match rates, so an open bet is re-priced on the terms it was priced on. */
+    preMatch?: PreMatchRates;
 }
 
 export interface AnalyzeResponse {

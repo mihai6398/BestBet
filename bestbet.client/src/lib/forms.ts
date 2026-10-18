@@ -157,10 +157,12 @@ export function buildAnalyzeRequest(
         selection: odds.selection,
         line: config.needsLine && odds.line !== '' ? Number(odds.line) : undefined,
         // Pre-match, the model's rates replace the typed probability when there are any: the server
-        // prices the chosen market from them, so the number is not left to a guess.
+        // prices the chosen market from them, so the number is not left to a guess. Live, the same
+        // rates are what the pace is pulled towards instead of a league-average match, so they go
+        // along either way.
         manualOwnProbability:
             live.isLive || preMatch ? undefined : Number(live.manualOwnProbability) / 100,
-        preMatch: !live.isLive && preMatch ? preMatch : undefined,
+        preMatch: preMatch ?? undefined,
         pace: live.isLive ? buildPaceSettings(pace) : undefined,
         referenceMarket: reference
             ? {

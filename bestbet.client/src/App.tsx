@@ -56,8 +56,12 @@ function App() {
     const [reference, setReference] = useState<ReferenceState | null>(null);
 
     // Expected goals from the pre-match model, once the user has chosen to price the market with
-    // them. Null means the probability is typed by hand, as it was before the model existed.
+    // them. Null means the probability is typed by hand, as it was before the model existed. Once
+    // the match is under way the same rates are what the live pace is pulled towards.
     const [preMatch, setPreMatch] = useState<PreMatchRates | null>(null);
+    // The match those rates were worked out for, so an open bet on some other match is never
+    // re-priced against them.
+    const [preMatchFor, setPreMatchFor] = useState('');
 
     const [result, setResult] = useState<AnalyzeResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -465,14 +469,20 @@ function App() {
     useEffect(() => {
         if (!watching || !readingKey || !feedLiveState || tracked.length === 0) return;
 
-        const reading = `${readingKey}|${tracked.map((position) => position.id).join(',')}`;
+        // The prior is part of the key: applying or dropping the pre-match numbers mid-match has
+        // to re-price the open bets, not wait for the next reading to happen along.
+        const prior = preMatch ? `${preMatch.homeExpectedGoals}/${preMatch.awayExpectedGoals}@${preMatchFor}` : '';
+        const reading = `${readingKey}|${tracked.map((position) => position.id).join(',')}|${prior}`;
         if (repricedReading.current === reading) return;
         repricedReading.current = reading;
 
         void Promise.all(
             tracked.map(async (position) => {
                 try {
-                    const now = await analysisClient.reprice(position.id, { liveState: feedLiveState });
+                    const now = await analysisClient.reprice(position.id, {
+                        liveState: feedLiveState,
+                        preMatch: preMatch && sameMatch(position.matchLabel, preMatchFor) ? preMatch : undefined,
+                    });
                     setRepriced((current) => ({ ...current, [position.id]: now }));
                 } catch (e) {
                     // One row that cannot be re-priced must not stop the others — but it must not
@@ -482,7 +492,7 @@ function App() {
                 }
             }),
         );
-    }, [watching, readingKey, feedLiveState, tracked, t]);
+    }, [watching, readingKey, feedLiveState, tracked, preMatch, preMatchFor, t]);
 
     const blocked = batchBlockedBy(live);
     const blockedReason =
@@ -509,7 +519,11 @@ function App() {
                 isPreMatch: false,
             };
 
-            const now = await analysisClient.reprice(id, { liveState });
+            const matchLabel = positions.find((position) => position.id === id)?.matchLabel;
+            const now = await analysisClient.reprice(id, {
+                liveState,
+                preMatch: preMatch && sameMatch(matchLabel, preMatchFor) ? preMatch : undefined,
+            });
             setRepriced((current) => ({ ...current, [id]: now }));
         } catch (e) {
             setError(e instanceof Error ? e.message : t.reprice.failed);
@@ -651,11 +665,19 @@ function App() {
                     <PreMatchPanel
                         matchLabel={odds.matchLabel}
                         active={preMatch}
-                        onApply={(rates) => {
+                        onApply={(rates, teams) => {
                             setPreMatch(rates);
-                            // The model prices a match that has not started, so using it turns the
-                            // live switch off; a live match is priced from its own xG instead.
-                            if (rates) setLive((current) => ({ ...current, isLive: false }));
+                            setPreMatchFor(rates ? odds.matchLabel || teams : '');
+                            // Before kick-off the rates price the match outright, so the live switch
+                            // goes off. Once it is under way they become what the live pace is pulled
+                            // towards instead, and the clock already on the form stays where it is.
+                            if (rates) {
+                                setLive((current) =>
+                                    current.isLive && current.minutePlayed !== ''
+                                        ? current
+                                        : { ...current, isLive: false },
+                                );
+                            }
                             setResult(null);
                         }}
                     />

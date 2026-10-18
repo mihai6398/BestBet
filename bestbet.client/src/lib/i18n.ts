@@ -491,9 +491,10 @@ const ro = {
         dynamicsHint: ' — cum este dus ritmul mai departe',
         correct: 'Corectează ritmul și starea scorului',
         correctedNote:
-            'Un ritm citit din câteva minute este o estimare, nu un fapt, așa că este tras spre un ' +
-            'meci mediu de ligă și ajustat pentru echipa care apără un avantaj. Oprește opțiunea ca ' +
-            'să vezi extrapolarea brută.',
+            'Un ritm citit din câteva minute este o estimare, nu un fapt, așa că este tras spre ce ' +
+            'produc de obicei cele două echipe — cifrele din panoul pre-meci, dacă le folosești, altfel ' +
+            'un meci mediu de ligă — și ajustat pentru echipa care apără un avantaj. Oprește opțiunea ' +
+            'ca să vezi extrapolarea brută.',
         rawNote:
             'Extrapolare brută: ritmul de pe ceas este dus liniar până la final. O primă repriză ' +
             'intensă proiectează atunci un scor care aproape niciodată nu se întâmplă.',
@@ -521,6 +522,11 @@ const ro = {
         paceDown: 'Ritm redus la',
         paceUp: 'Ritm crescut la',
         paceHint: (raw: string, adjusted: string) => `${raw} → ${adjusted} xG la 90 de minute, ambele echipe`,
+        pacePriorTeams: (home: string, away: string) =>
+            `Tras spre cifrele pre-meci ale echipelor: ${home} gazde, ${away} oaspeți, pe meci`,
+        pacePriorLeague: (value: string) =>
+            `Tras spre o medie de ligă de ${value} pe echipă — panoul pre-meci dă o bază mai bună, ` +
+            'din echipele care chiar joacă',
         overtaken: (minute: string) =>
             `Calculat la minutul ${minute}, iar meciul a mers mai departe. Apasă Analizează din nou ` +
             'ca rezultatul să fie pe minutul curent.',
@@ -571,6 +577,7 @@ const ro = {
     method: {
         'poisson-live-xg': 'Poisson pe xG live',
         'poisson-live-xg-paced': 'Poisson pe xG live, cu ritmul corectat',
+        'poisson-live-xg-paced-prematch': 'Poisson pe xG live, cu ritmul corectat spre cifrele pre-meci',
         'poisson-prematch-squad': 'Poisson pre-meci, din echipe și jucători',
         'manual-input': 'introdusă de tine',
         'slip-import': 'importat din bilet, fără estimare',
@@ -1263,8 +1270,9 @@ const en: Dictionary = {
         correct: 'Correct for pace and score state',
         correctedNote:
             'A rate read off a handful of minutes is an estimate, not a fact, so it is pulled ' +
-            'towards a league-average match and adjusted for the side protecting a lead. Switch ' +
-            'this off to see the raw extrapolation instead.',
+            'towards what these two teams usually produce — the pre-match panel’s numbers if you ' +
+            'use them, a league-average match otherwise — and adjusted for the side protecting a ' +
+            'lead. Switch this off to see the raw extrapolation instead.',
         rawNote:
             'Raw extrapolation: whatever pace the clock shows is run flat to full time. A hot first ' +
             'half then projects a scoreline that almost never happens.',
@@ -1292,6 +1300,11 @@ const en: Dictionary = {
         paceDown: 'Pace down to',
         paceUp: 'Pace up to',
         paceHint: (raw: string, adjusted: string) => `${raw} → ${adjusted} xG per 90, both sides`,
+        pacePriorTeams: (home: string, away: string) =>
+            `Pulled towards the teams' pre-match numbers: ${home} home, ${away} away, per match`,
+        pacePriorLeague: (value: string) =>
+            `Pulled towards a league average of ${value} per team — the pre-match panel gives a better ` +
+            'base, from the teams actually playing',
         overtaken: (minute: string) =>
             `Computed at minute ${minute}, and the match has moved on. Press Analyse again to price ` +
             'it at the current minute.',
@@ -1340,6 +1353,7 @@ const en: Dictionary = {
     method: {
         'poisson-live-xg': 'Poisson on live xG',
         'poisson-live-xg-paced': 'Poisson on live xG, pace corrected',
+        'poisson-live-xg-paced-prematch': 'Poisson on live xG, pace corrected towards the pre-match numbers',
         'poisson-prematch-squad': 'Poisson pre-match, from teams and players',
         'manual-input': 'entered by hand',
         'slip-import': 'imported from a slip, no estimate',

@@ -116,6 +116,19 @@ export function EdgeResultCard({ result, onSave, saving, saved, overtakenAtMinut
                             )}
                         </span>
                     </div>
+                    {/* Said in the reader's language rather than left to the step below, because
+                        which base the pace was pulled towards is the thing most likely to change
+                        the answer: a mid-table average reads a top side's pace as a hot streak. */}
+                    {model.pace.priorGoalsHome !== null && model.pace.priorGoalsAway !== null && (
+                        <p className="hint">
+                            {model.pace.priorFromPreMatch
+                                ? t.result.pacePriorTeams(
+                                      model.pace.priorGoalsHome.toFixed(2),
+                                      model.pace.priorGoalsAway.toFixed(2),
+                                  )
+                                : t.result.pacePriorLeague(model.pace.priorGoalsHome.toFixed(2))}
+                        </p>
+                    )}
                     <ul>
                         {model.pace.steps.map((step, index) => (
                             <li key={index}>{step}</li>
