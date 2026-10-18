@@ -277,7 +277,8 @@ public class PositionService(BestBetDbContext db)
             entity.MarketKind,
             selection,
             request.LiveState,
-            request.Pace);
+            request.Pace,
+            request.PreMatch);
 
         // Measured over the whole stake, so a returned stake counts as the zero it is. The estimate's
         // own probability is conditional on no push — the right number to hold against a de-vigged

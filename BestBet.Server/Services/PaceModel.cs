@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using BestBet.Contracts;
 using BestBet.Domain;
 
 namespace BestBet.Services;
@@ -14,10 +15,17 @@ namespace BestBet.Services;
 /// Three corrections, each switchable, each visible in the output:
 ///
 ///   1. SHRINKAGE. A rate read off 36 minutes is a small-sample estimate, not a fact. Blending the
-///      observed xG with a league-average prior worth <see cref="PriorStrengthMinutes"/> minutes of
-///      play is the standard fix, and it does most of the work: on the match above it alone takes
-///      Over 6.5 from 76% to 50%. It cuts both ways — a side on 0.30 xG gets pulled UP, because a
-///      quiet half hour is not proof of a quiet match.
+///      observed xG with a prior worth <see cref="PriorStrengthMinutes"/> minutes of play is the
+///      standard fix, and it does most of the work: on the match above it alone takes Over 6.5 from
+///      76% to 50%. It cuts both ways — a side on 0.30 xG gets pulled UP, because a quiet half hour
+///      is not proof of a quiet match.
+///
+///      The prior is each team's own pre-match expectation when the caller has one, and the league
+///      average only when it does not. A single league-wide number treats every side as mid-table:
+///      it pulls a top attack on a genuine 2.8-goal pace down towards 1.35, which is a systematic
+///      lean towards the Under on exactly the matches where the Over is most often right. The
+///      pre-match model already knows who these two teams are, so that is what the evidence is
+///      blended with.
 ///
 ///   2. RECENCY. When the caller can supply xG for a recent window — Sofascore and friends publish
 ///      per-half splits — the flat average is blended with that window's rate. This is what catches
@@ -36,9 +44,6 @@ public static class PaceModel
     /// pulled towards.
     /// </summary>
     public const double LeagueAverageGoalsPerTeam = 1.35;
-
-    /// <summary>The prior expressed as a rate per minute.</summary>
-    public const double PriorRatePerMinute = LeagueAverageGoalsPerTeam / PoissonGoalModel.RegulationMinutes;
 
     /// <summary>
     /// How much the prior is worth, in minutes of observed play. At 45 the prior and the evidence
@@ -62,7 +67,11 @@ public static class PaceModel
     /// </summary>
     public const double ImplausibleProjectedXg = 4.0;
 
-    public static PaceAdjustment Adjust(LiveMatchState state, PaceSettings settings)
+    /// <param name="state">The match as it is now.</param>
+    /// <param name="settings">Which corrections to apply.</param>
+    /// <param name="prior">Each side's expected goals for the whole match from the pre-match model, used
+    /// as the shrinkage target instead of the league average. Null falls back to the league average.</param>
+    public static PaceAdjustment Adjust(LiveMatchState state, PaceSettings settings, PreMatchRates? prior = null)
     {
         if (state.IsPreMatch)
         {
@@ -83,6 +92,13 @@ public static class PaceModel
             throw new ArgumentOutOfRangeException(nameof(state), "Cumulative xG cannot be negative.");
         }
 
+        if (prior is not null && !(IsPositiveFinite(prior.HomeExpectedGoals) && IsPositiveFinite(prior.AwayExpectedGoals)))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(prior),
+                "The pre-match expected goals must be positive numbers for both teams.");
+        }
+
         var elapsed = (double)state.MinutePlayed;
         var rawHome = state.CumulativeXgHome / elapsed;
         var rawAway = state.CumulativeXgAway / elapsed;
@@ -90,6 +106,8 @@ public static class PaceModel
         var home = rawHome;
         var away = rawAway;
         var steps = new List<string>();
+        double? priorHome = null;
+        double? priorAway = null;
 
         if (settings.HasRecentWindow)
         {
@@ -98,7 +116,9 @@ public static class PaceModel
 
         if (settings.Shrink)
         {
-            (home, away) = ApplyShrinkage(elapsed, home, away, steps);
+            priorHome = prior?.HomeExpectedGoals ?? LeagueAverageGoalsPerTeam;
+            priorAway = prior?.AwayExpectedGoals ?? LeagueAverageGoalsPerTeam;
+            (home, away) = ApplyShrinkage(elapsed, home, away, priorHome.Value, priorAway.Value, prior is not null, steps);
         }
 
         if (settings.ScoreState)
@@ -118,7 +138,10 @@ public static class PaceModel
             projectedAway,
             steps.Count > 0,
             steps,
-            BuildWarning(projectedHome, projectedAway, state.MinutePlayed, steps.Count > 0));
+            BuildWarning(projectedHome, projectedAway, state.MinutePlayed, steps.Count > 0),
+            priorHome,
+            priorAway,
+            settings.Shrink && prior is not null);
     }
 
     /// <summary>
@@ -170,29 +193,44 @@ public static class PaceModel
     }
 
     /// <summary>
-    /// Bayesian shrinkage towards the league prior. Written in xG rather than rate terms so the
+    /// Bayesian shrinkage towards each side's prior. Written in xG rather than rate terms so the
     /// weighting by minutes played is explicit: the evidence is worth the minutes it took to gather.
     /// </summary>
+    /// <param name="priorHome">Goals per match the home side is pulled towards.</param>
+    /// <param name="priorAway">The same for the away side.</param>
+    /// <param name="fromPreMatch">Whether those came from the pre-match model, for the explanation.</param>
     private static (double Home, double Away) ApplyShrinkage(
         double elapsed,
         double home,
         double away,
+        double priorHome,
+        double priorAway,
+        bool fromPreMatch,
         List<string> steps)
     {
-        var priorXg = PriorRatePerMinute * PriorStrengthMinutes;
         var denominator = elapsed + PriorStrengthMinutes;
 
-        var shrunkHome = (home * elapsed + priorXg) / denominator;
-        var shrunkAway = (away * elapsed + priorXg) / denominator;
+        var shrunkHome = (home * elapsed + PriorXg(priorHome)) / denominator;
+        var shrunkAway = (away * elapsed + PriorXg(priorAway)) / denominator;
+
+        var target = fromPreMatch
+            ? $"this match's pre-match expectation of {Num(priorHome)} xG home and {Num(priorAway)} away"
+            : $"a league-average {Num(LeagueAverageGoalsPerTeam)} xG per team";
 
         var evidenceWeight = elapsed / denominator;
         steps.Add(
-            $"Pulled towards a league-average {Num(LeagueAverageGoalsPerTeam)} xG per team " +
+            $"Pulled towards {target} " +
             $"({Pct(evidenceWeight)} weight on what this match has actually shown): " +
             $"rate {Rate(home)} → {Rate(shrunkHome)} home, {Rate(away)} → {Rate(shrunkAway)} away.");
 
         return (shrunkHome, shrunkAway);
     }
+
+    /// <summary>A prior of so many goals per match, expressed as the xG it is worth in the blend.</summary>
+    private static double PriorXg(double goalsPerMatch)
+        => goalsPerMatch / PoissonGoalModel.RegulationMinutes * PriorStrengthMinutes;
+
+    private static bool IsPositiveFinite(double value) => value > 0.0 && double.IsFinite(value);
 
     /// <summary>
     /// The leader attacks less, the chaser attacks more, and both effects grow as time runs out.
@@ -286,9 +324,12 @@ public static class PaceModel
                 "opening up. Even corrected, read this as a floor rather than a ceiling.";
         }
 
-        return
-            "Pace corrections barely moved the rate here — the match is running close to what a " +
-            "league-average game would. The remaining assumption is still that it keeps doing so.";
+        return adjustment.PriorFromPreMatch
+            ? "Pace corrections barely moved the rate here — the match is running close to what the " +
+              "pre-match numbers expected of these two teams. The remaining assumption is still that " +
+              "it keeps doing so."
+            : "Pace corrections barely moved the rate here — the match is running close to what a " +
+              "league-average game would. The remaining assumption is still that it keeps doing so.";
     }
 
     private static string Rate(double perMinute)

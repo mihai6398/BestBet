@@ -220,6 +220,25 @@ public class PositionEditingTests
     }
 
     [Fact]
+    public async Task Re_pricing_uses_the_pre_match_numbers_when_it_is_given_them()
+    {
+        // An open bet has to be re-priced on the same terms the analysis priced it on. If the
+        // analysis knew these were two attacking sides, the re-price must not forget it.
+        using var db = NewDb();
+        var service = new PositionService(db);
+        var saved = await service.SaveAsync(SampleSave());
+        var state = new LiveMatchState(60, 0.90, 0.80, 1, 1, false);
+
+        var league = await service.RepriceAsync(saved.Id, new RepricePositionRequest(state));
+        var attacking = await service.RepriceAsync(
+            saved.Id,
+            new RepricePositionRequest(state, PreMatch: new PreMatchRates(2.40, 1.90)));
+
+        Assert.True(attacking!.OwnProbability > league!.OwnProbability);
+        Assert.Equal(AnalysisService.LivePreMatchPriorMethod, attacking.Estimate.Method);
+    }
+
+    [Fact]
     public async Task The_EV_is_measured_at_the_price_already_taken()
     {
         using var db = NewDb();

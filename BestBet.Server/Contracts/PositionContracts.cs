@@ -84,7 +84,10 @@ public record UpdatePositionRequest(
 /// <param name="LiveState">Current minute, xG and score. Pre-match state is rejected: there is no
 /// model to run without a clock.</param>
 /// <param name="Pace">Same meaning as on an analysis. Omit it for the corrected model.</param>
-public record RepricePositionRequest(LiveMatchState LiveState, PaceSettings? Pace = null);
+/// <param name="PreMatch">The match's pre-match expected goals, when the caller has them. Same meaning as
+/// on a live analysis: the pace is shrunk towards these rather than the league average, so a bet is
+/// re-priced on the same terms it was priced on.</param>
+public record RepricePositionRequest(LiveMatchState LiveState, PaceSettings? Pace = null, PreMatchRates? PreMatch = null);
 
 /// <summary>
 /// What an already-placed bet is worth now.
