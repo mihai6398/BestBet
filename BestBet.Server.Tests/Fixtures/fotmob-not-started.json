@@ -1,0 +1,32 @@
+{
+  "general": {
+    "matchId": "5795478",
+    "leagueName": "Premier League",
+    "homeTeam": {
+      "name": "Everton",
+      "id": 8668
+    },
+    "awayTeam": {
+      "name": "Chelsea",
+      "id": 8455
+    },
+    "started": false,
+    "finished": false,
+    "matchTimeUTC": "Sat, Oct 17, 2026, 11:30 UTC"
+  },
+  "header": {
+    "status": {
+      "utcTime": "2026-10-17T11:30:00.000Z",
+      "numberOfHomeRedCards": 0,
+      "numberOfAwayRedCards": 0,
+      "halfs": {},
+      "started": false,
+      "cancelled": false,
+      "finished": false
+    }
+  },
+  "ongoing": false,
+  "content": {
+    "stats": null
+  }
+}

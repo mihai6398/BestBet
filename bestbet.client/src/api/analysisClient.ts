@@ -9,6 +9,7 @@ import type {
     PreMatchResponse,
     PreMatchStatus,
     PredictionMarket,
+    ProviderReading,
     RepriceRequest,
     RepricedPosition,
     SavePositionRequest,
@@ -98,6 +99,15 @@ export const analysisClient = {
     liveFeed: () => request<LiveFeedState>('/api/live-feed'),
 
     clearLiveFeed: () => request<void>('/api/live-feed', { method: 'DELETE' }),
+
+    /**
+     * One reading of a match the server fetches itself, from a link or an id the user pasted.
+     *
+     * Unlike the push route there is nothing stored behind this: each call is a fresh look at a
+     * match in progress, which is why it can be repeated on a timer without any state going stale.
+     */
+    providerReading: (match: string) =>
+        request<ProviderReading>(`/api/live-feed/provider?match=${encodeURIComponent(match)}`),
 
     /** Whether the pre-match model has a key to work with, and which competitions it can read. */
     preMatchStatus: () => request<PreMatchStatus>('/api/prematch/status'),

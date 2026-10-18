@@ -68,7 +68,7 @@ dotnet test
 npm --prefix bestbet.client test
 ```
 
-287 server tests, including the worked examples from the specification pinned as an acceptance suite in
+321 server tests, including the worked examples from the specification pinned as an acceptance suite in
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`. Those are the definition of "the maths
 is still right" — if one of them drifts, fix that before adding anything.
 
@@ -142,8 +142,9 @@ it while EV and the Kelly stake stay at the price you can actually get. Mixing t
 a stake against a price nobody will give you — is the one way this could cost money, so the server
 keeps them apart and the result card shows both lines and their disagreement.
 
-`GET /api/reference/polymarket?q=` makes an outbound request with nothing but the search term in it, and
-the rest of the app works unchanged when it fails. The only other is the pre-match model's, above.
+`GET /api/reference/polymarket?q=` makes an outbound request with nothing but the search term in it,
+and the rest of the app works unchanged when it fails. It is one of three the app makes: the other
+two are the pre-match model's, above, and the live match fetch below.
 
 ## The positions log
 
@@ -154,19 +155,34 @@ model's own probability alone: getting a worse price says nothing about what the
 
 ### Watching a match that is still being played
 
-Sofascore answers a programmatic request with 403 — every request, down to robots.txt — because
-Cloudflare rejects anything that is not a real browser. A server-side poller would therefore have to
-impersonate one, which is against their terms and breaks the first time they tighten it. So the
-reading is **pushed, not fetched**: a bookmarklet started on the tab the user already has the match
-open in reads the page as text every 20 seconds and posts it to `POST /api/live-feed`.
+Two routes in, for one reason: the providers do not all answer.
 
-The text is parsed by the same parser a manual paste goes through — one implementation to keep
-working rather than two that can disagree about what a redesign means. Each reading fills the live
-form and re-prices the open positions **on that match only**: the team-name check is what stops a
-saved bet being priced against another match's clock.
+**Paste the match link.** `GET /api/live-feed/provider?match=` takes a FotMob link, a FotMob match
+id, or a Sofascore link, and the server fetches the match itself every few seconds. FotMob answers a
+plain request — no key, no account, and nothing claiming to be a browser it is not. A Sofascore link
+works too, without asking Sofascore anything: their URL gives up the team names in its slug, and the
+same match is then found at FotMob by name. Nothing has to stay open and there is nothing to drag.
 
-The endpoint is guarded by a token generated per run and readable only from the app's own origin; a
-page that was not handed it gets a 401. Readings live in memory and are gone when the app stops.
+**Or run the bookmarklet.** Sofascore answers a programmatic request with 403 — every request, down
+to robots.txt — because Cloudflare rejects anything that is not a real browser, and FotMob does not
+compute xG for every league. Without xG the model has nothing to run on, so for those matches the
+reading has to come from a browser that is already allowed: a bookmarklet started on the tab the
+user already has the match open in reads the page as text every 20 seconds and posts it to
+`POST /api/live-feed`. A match FotMob has no xG for says so in the panel, in those words, rather
+than arriving with a plausible-looking number nobody measured.
+
+The link route wins whenever one is set — it is the user naming the match they want watched, while a
+push is whatever page a bookmarklet was last pressed on. Clearing the link hands the channel back.
+
+Either way the reading ends up in the same shape: the bookmarklet's page text goes through the same
+parser a manual paste goes through, and FotMob's JSON is mapped server-side to those same fields,
+including the rule that `62:08` is the 63rd minute. Each reading fills the live form and re-prices
+the open positions **on that match only**: the team-name check is what stops a saved bet being
+priced against another match's clock.
+
+The push endpoint is guarded by a token generated per run and readable only from the app's own
+origin; a page that was not handed it gets a 401. Readings live in memory and are gone when the app
+stops.
 
 `POST /api/positions/{id}/reprice` re-runs the live model on an open position against the match as
 it is now, and returns the probability, the EV at the price already taken, and the fair price at

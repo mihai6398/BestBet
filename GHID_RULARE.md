@@ -455,8 +455,9 @@ puncte procentuale.
 
 ### Ce pleacă de pe calculator
 
-Doar textul căutării, și doar când apeși *Caută*. Este cererea făcută fără cont; singura altă
-cerere în afară este cea din §5b, care cere o cheie. Nu pleacă nimic altceva: nici capitalul, nici miza, nici jurnalul, nici capturile
+Doar textul căutării, și doar când apeși *Caută*. Este una dintre cele trei cereri pe care
+aplicația le face în afară: celelalte două sunt cea din §5b, care cere o cheie, și citirea meciului
+prin link din §7, care trimite doar ID-ul meciului. Nu pleacă nimic altceva: nici capitalul, nici miza, nici jurnalul, nici capturile
 de ecran. Nu există cont, cheie sau autentificare. Dacă Polymarket nu răspunde, primești un mesaj și
 restul aplicației funcționează neschimbat — citirea capturilor și a statisticilor merg în continuare
 fără internet.
@@ -562,11 +563,30 @@ cash-out la echivalentul lui 1.40, oferta e în dezavantajul tău.
 Panoul **„Monitorizare în timp real"**, primul sub importul din captură. Pariurile deschise se
 recalculează singure, la fiecare citire, cât timp meciul merge.
 
-### De ce merge printr-un semn de carte și nu direct de pe server
+### Calea obișnuită: lipești linkul meciului
 
-Varianta evidentă ar fi ca serverul aplicației să întrebe Sofascore din 20 în 20 de secunde. Nu se
-poate, și nu e o chestiune de efort: **Sofascore răspunde 403 la orice cerere care nu vine dintr-un
-browser real** — inclusiv la `robots.txt`. Verificat direct de pe calculatorul tău:
+1. Deschizi panoul, lipești în câmpul **„Link de meci sau ID"** adresa meciului — de pe FotMob
+   (`https://www.fotmob.com/match/5881191`) sau de pe Sofascore
+   (`https://www.sofascore.com/football/match/arouca-porto/...`). Merge și doar ID-ul de pe FotMob.
+2. Apeși **„Urmărește meciul"**. Atât.
+
+De aici serverul cere singur datele la câteva secunde. Nu trebuie să lași nicio filă deschisă și nu
+ai ce trage nicăieri. Linkul rămâne pus și după un refresh al paginii.
+
+Datele vin de la **FotMob**, care răspunde unei cereri obișnuite — fără cheie, fără cont și fără ca
+serverul să se dea drept altceva. Linkul de Sofascore merge fără să se ceară nimic de la Sofascore:
+din adresa lor se iau numele echipelor, iar meciul e căutat după nume la FotMob.
+
+> **Dacă liga nu are xG la FotMob**, panoul îți spune exact asta și nu inventează niciun număr. Fără
+> xG modelul n-are pe ce să ruleze, deci pentru meciul acela treci pe semnul de carte de mai jos sau
+> lipești statisticile de mână. Ligile mari (Bundesliga, LaLiga, Serie A) au xG; multe dintre cele
+> mici nu.
+
+### Rezerva: semnul de carte, din fila ta de Sofascore
+
+Pentru meciurile fără xG la FotMob, singura cale rămasă e pagina pe care o ai tu deschisă — iar
+acolo **Sofascore răspunde 403 la orice cerere care nu vine dintr-un browser real**, inclusiv la
+`robots.txt`. Verificat direct de pe calculatorul tău:
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" https://www.sofascore.com/robots.txt
@@ -583,13 +603,18 @@ browserul tău încărcase oricum.
 
 ### Cum se pornește
 
-1. Deschizi panoul și **tragi butonul „BestBet: monitorizează" în bara de favorite**. (Sau apeși
-   *Copiază* și îți faci singur un favorit cu textul ăla.)
+1. În panou apeși **„Nu merge prin link? Monitorizare din fila ta de Sofascore"** și **tragi butonul
+   „BestBet: monitorizează" în bara de favorite**. (Sau apeși *Copiază* și îți faci singur un favorit
+   cu textul acela.)
 2. Deschizi meciul pe Sofascore, mergi la **fila Statistici**, și apeși pe favoritul nou. Apare o
    confirmare. Apeși din nou pe el ca să oprești.
 3. În aplicație bifezi **Monitorizare activă**.
 
-De aici, la fiecare 20 de secunde pleacă o citire, iar aplicația:
+> **Cât timp ai un link pus, linkul are întâietate** și citirea din semnul de carte e ignorată —
+> altfel formularul ar sări între două minute fără să se vadă de ce. Apasă **Oprește** lângă câmpul
+> de link și semnul de carte preia imediat.
+
+De aici, pe oricare din cele două căi, aplicația:
 
 - umple singură minutul, scorul și xG-ul din formular;
 - **recalculează singură pariurile deschise din acel meci** — panoul de recalculare apare sub fiecare
@@ -608,11 +633,16 @@ meci un număr foarte sigur despre un joc care n-are nicio legătură cu el.
 | Citire fără xG (ești pe altă filă decât Statistici) | O refuză și îți spune să te întorci pe Statistici |
 | Rezultatul de sus e calculat la un minut depășit | Cardul își spune singur că a fost depășit |
 | Pariul s-a decis deja (Sub 1.5 la 1–1) | Arată 0%, EV −100%, și „nu mai există o cotă corectă" |
+| Liga nu are xG la furnizor | Ți-o spune limpede și te trimite la semnul de carte sau la paste; nu inventează un xG |
+| Furnizorul nu mai răspunde la link | Vârsta citirii crește mai departe și o marchează ca veche |
+| Meciul nu a început sau s-a terminat | Ți-o spune, în loc să arate 0–0 în minutul 1 |
 
 ### Ce circulă și unde
 
-Citirea merge **doar între browserul tău și aplicația de pe calculatorul tău**. Nu se salvează
-nicăieri — stă în memorie și dispare când oprești aplicația. Punctul de intrare e protejat cu un
+Prin semnul de carte, citirea merge **doar între browserul tău și aplicația de pe calculatorul
+tău**. Prin link, din calculator pleacă **doar ID-ul meciului**, către furnizor — nimic altceva:
+nici banca, nici miza, nici pozițiile salvate. Oricum, citirea nu se salvează
+nicăieri — stă în memorie și dispare când oprești aplicația. Punctul de intrare al semnului de carte e protejat cu un
 token generat la fiecare pornire, pe care doar interfața aplicației îl poate citi; o pagină care nu
 l-a primit primește `401`.
 
@@ -634,11 +664,11 @@ l-a primit primește `401`.
 dotnet test
 ```
 
-245 de teste, sub o secundă. Printre ele, în
+321 de teste, sub o secundă. Printre ele, în
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`, exemplele numerice din specificație —
 acelea sunt definiția lui „matematica e încă bună”. Dacă vreunul pică, se repară întâi el.
 
-Pentru client (167 de teste pe parserele de import, pe citirea capturilor, pe analiza în bloc și pe
+Pentru client (225 de teste pe parserele de import, pe citirea capturilor, pe analiza în bloc și pe
 monitorizare):
 
 ```bash

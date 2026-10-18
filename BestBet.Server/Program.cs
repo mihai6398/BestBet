@@ -37,12 +37,25 @@ builder.Services.AddCors(options => options.AddPolicy(
     LiveFeedCors.PolicyName,
     policy => policy.AllowAnyOrigin().WithMethods("POST").AllowAnyHeader()));
 
-// The one outbound dependency in the app. A short timeout on purpose: a reference line is a nice to
-// have, and a slow exchange must never hold up a form the user is filling in while a match runs.
+// The outbound dependencies in the app. Short timeouts on purpose: every one of them is a nice to
+// have, and a slow third party must never hold up a form the user is filling in while a match runs.
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<PolymarketClient>(client =>
 {
     client.BaseAddress = new Uri("https://gamma-api.polymarket.com/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("BestBet/1.0 (personal decision-support tool)");
+});
+
+// Live match data from a provider that answers a plain request. The base address ends in /api/data/
+// because that is where the endpoints are — the shorter /api/matchDetails answers 404.
+//
+// The user agent is the app's own name, as it is for Polymarket. That is the whole difference
+// between this and the route that does not exist for Sofascore: nothing here claims to be a browser
+// it is not, so there is nothing to keep working as anyone's bot detection tightens.
+builder.Services.AddHttpClient<FotMobClient>(client =>
+{
+    client.BaseAddress = new Uri("https://www.fotmob.com/api/data/");
     client.Timeout = TimeSpan.FromSeconds(10);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("BestBet/1.0 (personal decision-support tool)");
 });

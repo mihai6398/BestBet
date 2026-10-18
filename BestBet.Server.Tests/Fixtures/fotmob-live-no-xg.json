@@ -1,0 +1,805 @@
+{
+  "general": {
+    "matchId": "1000022162",
+    "leagueName": "CONMEBOL Libertadores Femenina",
+    "homeTeam": {
+      "name": "Club Bolivar",
+      "id": 2251494
+    },
+    "awayTeam": {
+      "name": "Olimpia",
+      "id": 1812473
+    },
+    "started": true,
+    "finished": false,
+    "matchTimeUTC": "Fri, Oct 16, 2026, 20:00 UTC"
+  },
+  "header": {
+    "status": {
+      "utcTime": "2026-10-16T20:00:00.000Z",
+      "numberOfHomeRedCards": 0,
+      "numberOfAwayRedCards": 0,
+      "halfs": {
+        "firstHalfStarted": "16.10.2026 22:00:42",
+        "firstHalfEnded": "16.10.2026 22:47:47",
+        "secondHalfStarted": "16.10.2026 23:03:10",
+        "secondHalfEnded": "",
+        "firstExtraHalfStarted": "",
+        "secondExtraHalfStarted": "",
+        "gameEnded": ""
+      },
+      "finished": false,
+      "started": true,
+      "cancelled": false,
+      "ongoing": true,
+      "scoreStr": "1 - 2",
+      "liveTime": {
+        "short": "63‎’‎",
+        "shortKey": "",
+        "long": "62:08",
+        "longKey": "",
+        "maxTime": 90,
+        "basePeriod": 90,
+        "penalties": null,
+        "addedTime": 0
+      }
+    }
+  },
+  "ongoing": true,
+  "content": {
+    "stats": {
+      "Periods": {
+        "All": {
+          "stats": [
+            {
+              "title": "Top stats",
+              "key": "top_stats",
+              "stats": [
+                {
+                  "title": "Ball possession",
+                  "key": "BallPossesion",
+                  "stats": [
+                    45,
+                    55
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 45
+                    },
+                    {
+                      "value": 55
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "graph",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Total shots",
+                  "key": "total_shots",
+                  "stats": [
+                    5,
+                    14
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 5
+                    },
+                    {
+                      "value": 14
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Shots on target",
+                  "key": "ShotsOnTarget",
+                  "stats": [
+                    2,
+                    10
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 2
+                    },
+                    {
+                      "value": 10
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Big chances",
+                  "key": "big_chance",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Big chances missed",
+                  "key": "big_chance_missed_title",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Accurate passes",
+                  "key": "accurate_passes",
+                  "stats": [
+                    "123 (70%)",
+                    "171 (80%)"
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 123,
+                      "total": 175
+                    },
+                    {
+                      "value": 171,
+                      "total": 213
+                    }
+                  ],
+                  "format": "integerWithPercentage",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Yellow cards",
+                  "key": "yellow_cards",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Corners",
+                  "key": "corners",
+                  "stats": [
+                    1,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 1
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "home"
+                }
+              ]
+            },
+            {
+              "title": "Shots",
+              "key": "shots",
+              "stats": [
+                {
+                  "title": "Shots",
+                  "key": "shots",
+                  "stats": [
+                    null,
+                    null
+                  ],
+                  "rawStats": [
+                    null,
+                    null
+                  ],
+                  "type": "title",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Total shots",
+                  "key": "total_shots",
+                  "stats": [
+                    5,
+                    14
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 5
+                    },
+                    {
+                      "value": 14
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Shots off target",
+                  "key": "ShotsOffTarget",
+                  "stats": [
+                    2,
+                    3
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 2
+                    },
+                    {
+                      "value": 3
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Shots on target",
+                  "key": "ShotsOnTarget",
+                  "stats": [
+                    2,
+                    10
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 2
+                    },
+                    {
+                      "value": 10
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Blocked shots",
+                  "key": "blocked_shots",
+                  "stats": [
+                    1,
+                    1
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 1
+                    },
+                    {
+                      "value": 1
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Hit woodwork",
+                  "key": "shots_woodwork",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Shots inside box",
+                  "key": "shots_inside_box",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Shots outside box",
+                  "key": "shots_outside_box",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                }
+              ]
+            },
+            {
+              "title": "Passes",
+              "key": "passes",
+              "stats": [
+                {
+                  "title": "Passes",
+                  "key": "passes",
+                  "stats": [
+                    null,
+                    null
+                  ],
+                  "rawStats": [
+                    null,
+                    null
+                  ],
+                  "type": "title",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Passes",
+                  "key": "passes",
+                  "stats": [
+                    175,
+                    213
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 175
+                    },
+                    {
+                      "value": 213
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Accurate passes",
+                  "key": "accurate_passes",
+                  "stats": [
+                    "123 (70%)",
+                    "171 (80%)"
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 123,
+                      "total": 175
+                    },
+                    {
+                      "value": 171,
+                      "total": 213
+                    }
+                  ],
+                  "format": "integerWithPercentage",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Accurate long balls",
+                  "key": "long_balls_accurate",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0,
+                      "total": 0
+                    },
+                    {
+                      "value": 0,
+                      "total": 0
+                    }
+                  ],
+                  "format": "integerWithPercentage",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Accurate crosses",
+                  "key": "accurate_crosses",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0,
+                      "total": 0
+                    },
+                    {
+                      "value": 0,
+                      "total": 0
+                    }
+                  ],
+                  "format": "integerWithPercentage",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Throws",
+                  "key": "player_throws",
+                  "stats": [
+                    12,
+                    9
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 12
+                    },
+                    {
+                      "value": 9
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "home"
+                },
+                {
+                  "title": "Offsides",
+                  "key": "Offsides",
+                  "stats": [
+                    0,
+                    1
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 1
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "home"
+                }
+              ]
+            },
+            {
+              "title": "Defence",
+              "key": "defence",
+              "stats": [
+                {
+                  "title": "Defence",
+                  "key": "defense",
+                  "stats": [
+                    null,
+                    null
+                  ],
+                  "rawStats": [
+                    null,
+                    null
+                  ],
+                  "type": "title",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Tackles",
+                  "key": "matchstats.headers.tackles",
+                  "stats": [
+                    13,
+                    15
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 13
+                    },
+                    {
+                      "value": 15
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "away"
+                },
+                {
+                  "title": "Interceptions",
+                  "key": "interceptions",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Blocks",
+                  "key": "shot_blocks",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Clearances",
+                  "key": "clearances",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Keeper saves",
+                  "key": "keeper_saves",
+                  "stats": [
+                    8,
+                    1
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 8
+                    },
+                    {
+                      "value": 1
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "home"
+                }
+              ]
+            },
+            {
+              "title": "Duels",
+              "key": "duels",
+              "stats": [
+                {
+                  "title": "Duels",
+                  "key": "duels",
+                  "stats": [
+                    null,
+                    null
+                  ],
+                  "rawStats": [
+                    null,
+                    null
+                  ],
+                  "type": "title",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Duels won",
+                  "key": "duel_won",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Ground duels won",
+                  "key": "ground_duels_won",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": null,
+                      "total": null
+                    },
+                    {
+                      "value": null,
+                      "total": null
+                    }
+                  ],
+                  "format": "integerWithPercentage",
+                  "type": "text",
+                  "highlighted": "home"
+                },
+                {
+                  "title": "Aerial duels won",
+                  "key": "aerials_won",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0,
+                      "total": 0
+                    },
+                    {
+                      "value": 0,
+                      "total": 0
+                    }
+                  ],
+                  "format": "integerWithPercentage",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Successful dribbles",
+                  "key": "dribbles_succeeded",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0,
+                      "total": 0
+                    },
+                    {
+                      "value": 0,
+                      "total": 0
+                    }
+                  ],
+                  "format": "integerWithPercentage",
+                  "type": "text",
+                  "highlighted": "equal"
+                }
+              ]
+            },
+            {
+              "title": "Discipline",
+              "key": "discipline",
+              "stats": [
+                {
+                  "title": "Discipline",
+                  "key": "discipline",
+                  "stats": [
+                    null,
+                    null
+                  ],
+                  "rawStats": [
+                    null,
+                    null
+                  ],
+                  "type": "title",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Yellow cards",
+                  "key": "yellow_cards",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Red cards",
+                  "key": "red_cards",
+                  "stats": [
+                    0,
+                    0
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 0
+                    },
+                    {
+                      "value": 0
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "equal"
+                },
+                {
+                  "title": "Fouls committed",
+                  "key": "fouls",
+                  "stats": [
+                    9,
+                    12
+                  ],
+                  "rawStats": [
+                    {
+                      "value": 9
+                    },
+                    {
+                      "value": 12
+                    }
+                  ],
+                  "format": "integer",
+                  "type": "text",
+                  "highlighted": "home"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
