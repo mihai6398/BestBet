@@ -42,16 +42,17 @@ WORKDIR /app
 COPY --from=server /app/publish ./
 COPY --from=client /src/dist ./wwwroot
 
-# The SQLite file lives on a volume, not in the image layer, so the positions log survives a rebuild.
-# Creating the directory with the right owner here is what lets a named volume inherit that
-# ownership — without it the non-root user cannot write to the mount.
-RUN mkdir -p /app/data && chown -R $APP_UID:$APP_UID /app/data
+# The keys that sign the login cookie live on a volume, not in the image layer, so a rebuild signs
+# nobody out. Creating the directory with the right owner here is what lets a named volume inherit
+# that ownership — without it the non-root user cannot write to the mount. The data itself is in
+# PostgreSQL; nothing else in the container needs to be written.
+RUN mkdir -p /app/keys && chown -R $APP_UID:$APP_UID /app/keys
 USER $APP_UID
 
 # The base image already binds HTTP on 8080 via ASPNETCORE_HTTP_PORTS; setting ASPNETCORE_URLS as
 # well only makes Kestrel log a warning about overriding it. Leaving both HTTPS settings unset is
-# also what tells Program.cs not to wire up HTTPS redirection.
-ENV ConnectionStrings__BestBet="Data Source=/app/data/bestbet.db"
+# also what tells Program.cs not to wire up HTTPS redirection. The connection string and every other
+# secret come from the environment at run time, never from the image.
 
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "BestBet.Server.dll"]
