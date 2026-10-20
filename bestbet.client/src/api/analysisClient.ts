@@ -1,19 +1,19 @@
 import type {
     AnalyzeRequest,
     AnalyzeResponse,
-    ImportPositionRequest,
+    ImportBetRequest,
     LiveFeedState,
-    Position,
-    PositionsSummary,
+    Bet,
+    BetStats,
     PreMatchRequest,
     PreMatchResponse,
     PreMatchStatus,
     PredictionMarket,
     ProviderReading,
     RepriceRequest,
-    RepricedPosition,
-    SavePositionRequest,
-    UpdatePositionRequest,
+    RepricedBet,
+    SaveBetRequest,
+    UpdateBetRequest,
 } from '../types/domain';
 
 /**
@@ -64,26 +64,26 @@ export const analysisClient = {
     analyze: (payload: AnalyzeRequest) =>
         request<AnalyzeResponse>('/api/analyze', { method: 'POST', body: JSON.stringify(payload) }),
 
-    listPositions: () => request<Position[]>('/api/positions'),
+    listBets: () => request<Bet[]>('/api/bets'),
 
-    positionsSummary: () => request<PositionsSummary>('/api/positions/summary'),
+    betStats: () => request<BetStats>('/api/bets/stats'),
 
-    savePosition: (payload: SavePositionRequest) =>
-        request<Position>('/api/positions', { method: 'POST', body: JSON.stringify(payload) }),
+    saveBet: (payload: SaveBetRequest) =>
+        request<Bet>('/api/bets', { method: 'POST', body: JSON.stringify(payload) }),
 
     /** A bet already placed at a bookmaker, brought in from its slip. */
-    importPosition: (payload: ImportPositionRequest) =>
-        request<Position>('/api/positions/import', { method: 'POST', body: JSON.stringify(payload) }),
+    importBet: (payload: ImportBetRequest) =>
+        request<Bet>('/api/bets/import', { method: 'POST', body: JSON.stringify(payload) }),
 
-    updatePosition: (id: number, payload: UpdatePositionRequest) =>
-        request<Position>(`/api/positions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+    updateBet: (id: number, payload: UpdateBetRequest) =>
+        request<Bet>(`/api/bets/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
-    deletePosition: (id: number) =>
-        request<void>(`/api/positions/${id}`, { method: 'DELETE' }),
+    deleteBet: (id: number) =>
+        request<void>(`/api/bets/${id}`, { method: 'DELETE' }),
 
     /** What an open position is worth now. Computes; changes nothing. */
     reprice: (id: number, payload: RepriceRequest) =>
-        request<RepricedPosition>(`/api/positions/${id}/reprice`, {
+        request<RepricedBet>(`/api/bets/${id}/reprice`, {
             method: 'POST',
             body: JSON.stringify(payload),
         }),

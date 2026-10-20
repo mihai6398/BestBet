@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import { DISCLAIMER } from '../types/domain';
-import type { MarketKind, MarketSelection, PositionOutcome, Verdict } from '../types/domain';
+import type { MarketKind, MarketSelection, BetStatus, Verdict } from '../types/domain';
 import type { ParseIssue } from './oddsPaste';
 
 /**
@@ -592,11 +592,14 @@ const ro = {
     } as Record<Verdict, string>,
 
     outcome: {
-        Pending: 'În așteptare',
+        Open: 'Deschis',
         Won: 'Câștigat',
         Lost: 'Pierdut',
         Void: 'Anulat',
-    } as Record<PositionOutcome, string>,
+        HalfWon: 'Câștigat pe jumătate',
+        HalfLost: 'Pierdut pe jumătate',
+        CashedOut: 'Cash-out',
+    } as Record<BetStatus, string>,
 
     log: {
         title: 'Jurnal de poziții',
@@ -1368,11 +1371,14 @@ const en: Dictionary = {
     } as Record<Verdict, string>,
 
     outcome: {
-        Pending: 'Pending',
+        Open: 'Open',
         Won: 'Won',
         Lost: 'Lost',
         Void: 'Void',
-    } as Record<PositionOutcome, string>,
+        HalfWon: 'Half won',
+        HalfLost: 'Half lost',
+        CashedOut: 'Cashed out',
+    } as Record<BetStatus, string>,
 
     log: {
         title: 'Positions log',

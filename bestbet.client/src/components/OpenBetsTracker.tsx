@@ -14,13 +14,13 @@ import {
     withReading,
 } from '../lib/tracking';
 import type { TrackForm } from '../lib/tracking';
-import type { Position, PositionOutcome, RepricedPosition } from '../types/domain';
+import type { Bet, BetStatus, RepricedBet } from '../types/domain';
 
 interface Props {
-    positions: Position[];
+    positions: Bet[];
     /** The match state in the main form, which a bet can borrow instead of retyping it. */
     live: LiveFormState;
-    onSettle: (id: number, outcome: PositionOutcome) => void;
+    onSettle: (id: number, outcome: BetStatus) => void;
 }
 
 /** How long to wait after the last keystroke before asking the server, so typing "1.25" is one call. */
@@ -39,7 +39,7 @@ const DECIDED = 0.9995;
  */
 export function OpenBetsTracker({ positions, live, onSettle }: Props) {
     const t = useT();
-    const open = positions.filter((position) => position.outcome === 'Pending');
+    const open = positions.filter((position) => position.status === 'Open');
 
     return (
         <section className="card">
@@ -62,9 +62,9 @@ function OpenBet({
     live,
     onSettle,
 }: {
-    position: Position;
+    position: Bet;
     live: LiveFormState;
-    onSettle: (id: number, outcome: PositionOutcome) => void;
+    onSettle: (id: number, outcome: BetStatus) => void;
 }) {
     const t = useT();
     const locale = useLocale();
@@ -75,7 +75,7 @@ function OpenBet({
         initialTrackForm(position),
     );
 
-    const [reading, setReading] = useState<RepricedPosition | null>(null);
+    const [reading, setReading] = useState<RepricedBet | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildAnalyzeRequest,
-    buildSavePositionRequest,
+    buildSaveBetRequest,
     canonicalSelection,
     defaultLiveForm,
     defaultOddsForm,
@@ -59,7 +59,7 @@ describe('naming the chosen side', () => {
             model: null,
         } as unknown as AnalyzeResponse;
 
-        const saved = buildSavePositionRequest(totals(), { ...live(), isLive: false }, 100, result);
+        const saved = buildSaveBetRequest(totals(), { ...live(), isLive: false }, 100, result);
 
         expect(saved.selection).toBe('Over 2.5');
     });

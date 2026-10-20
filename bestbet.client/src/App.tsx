@@ -19,7 +19,7 @@ import { batchBlockedBy, oddsFormFor, runBatch } from './lib/batch';
 import type { BatchCandidate, BatchRow } from './lib/batch';
 import {
     buildAnalyzeRequest,
-    buildSavePositionRequest,
+    buildSaveBetRequest,
     defaultLiveForm,
     defaultOddsForm,
     defaultPaceForm,
@@ -34,12 +34,12 @@ import type {
     AnalyzeResponse,
     LiveFeedState,
     LiveMatchState,
-    Position,
-    PositionOutcome,
-    PositionsSummary,
+    Bet,
+    BetStatus,
+    BetStats,
     PreMatchRates,
     ProviderReading,
-    RepricedPosition,
+    RepricedBet,
 } from './types/domain';
 
 function App() {
@@ -77,12 +77,12 @@ function App() {
     const [batchSaved, setBatchSaved] = useState<ReadonlySet<string>>(new Set());
     const [batchSaving, setBatchSaving] = useState<string | null>(null);
 
-    const [positions, setPositions] = useState<Position[]>([]);
-    const [summary, setSummary] = useState<PositionsSummary | null>(null);
+    const [positions, setPositions] = useState<Bet[]>([]);
+    const [summary, setSummary] = useState<BetStats | null>(null);
 
     // Re-priced open positions, keyed by row. Computed on demand and never persisted, so this lives
     // in the component rather than on the row the server sends back.
-    const [repriced, setRepriced] = useState<Record<number, RepricedPosition>>({});
+    const [repriced, setRepriced] = useState<Record<number, RepricedBet>>({});
     const [repricing, setRepricing] = useState<number | null>(null);
 
     // Readings pushed in from the match page the user has open. See lib/liveFeed.ts for why they
@@ -127,8 +127,8 @@ function App() {
         void (async () => {
             try {
                 const [rows, totals] = await Promise.all([
-                    analysisClient.listPositions(),
-                    analysisClient.positionsSummary(),
+                    analysisClient.listBets(),
+                    analysisClient.betStats(),
                 ]);
                 if (cancelled) return;
                 setPositions(rows);
@@ -195,12 +195,12 @@ function App() {
         }
     };
 
-    const savePosition = async () => {
+    const saveBet = async () => {
         if (!result) return;
         setSaving(true);
         try {
-            const saved = await analysisClient.savePosition(
-                buildSavePositionRequest(odds, live, bankroll, result),
+            const saved = await analysisClient.saveBet(
+                buildSaveBetRequest(odds, live, bankroll, result),
             );
             setSavedId(saved.id);
             refreshLog();
@@ -252,8 +252,8 @@ function App() {
         if (!row.result) return;
         setBatchSaving(row.candidate.id);
         try {
-            await analysisClient.savePosition(
-                buildSavePositionRequest(
+            await analysisClient.saveBet(
+                buildSaveBetRequest(
                     oddsFormFor(odds, row.candidate),
                     live,
                     bankroll,
@@ -321,7 +321,7 @@ function App() {
         () =>
             positions.filter(
                 (position) =>
-                    position.outcome === 'Pending' &&
+                    position.status === 'Open' &&
                     sameMatch(position.matchLabel, feedParsed?.matchLabel),
             ),
         [positions, feedParsed?.matchLabel],
@@ -543,7 +543,7 @@ function App() {
 
     const updateClosingOdds = async (id: number, closingDecimalOdds: number | null) => {
         try {
-            await analysisClient.updatePosition(id, { closingDecimalOdds });
+            await analysisClient.updateBet(id, { closingDecimalOdds });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.updateError);
@@ -556,7 +556,7 @@ function App() {
      */
     const updateEntryOdds = async (id: number, entryDecimalOdds: number) => {
         try {
-            await analysisClient.updatePosition(id, { entryDecimalOdds });
+            await analysisClient.updateBet(id, { entryDecimalOdds });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.updateError);
@@ -565,25 +565,25 @@ function App() {
 
     const updateStake = async (id: number, stakeAmount: number) => {
         try {
-            await analysisClient.updatePosition(id, { stakeAmount });
+            await analysisClient.updateBet(id, { stakeAmount });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.updateError);
         }
     };
 
-    const updateOutcome = async (id: number, outcome: PositionOutcome) => {
+    const updateOutcome = async (id: number, outcome: BetStatus) => {
         try {
-            await analysisClient.updatePosition(id, { outcome });
+            await analysisClient.updateBet(id, { status: outcome });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.outcomeError);
         }
     };
 
-    const deletePosition = async (id: number) => {
+    const deleteBet = async (id: number) => {
         try {
-            await analysisClient.deletePosition(id);
+            await analysisClient.deleteBet(id);
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.deleteError);
@@ -732,7 +732,7 @@ function App() {
                     {result ? (
                         <EdgeResultCard
                             result={result}
-                            onSave={savePosition}
+                            onSave={saveBet}
                             saving={saving}
                             saved={savedId !== null}
                             overtakenAtMinute={
@@ -759,7 +759,7 @@ function App() {
                 onUpdateEntryOdds={updateEntryOdds}
                 onUpdateStake={updateStake}
                 onUpdateOutcome={updateOutcome}
-                onDelete={deletePosition}
+                onDelete={deleteBet}
                 onReprice={reprice}
                 repriceBlocked={blocked === null ? null : t.reprice.needsLive}
                 repricing={repricing}

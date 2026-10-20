@@ -135,7 +135,7 @@ export function BetSlipImportPanel({ onSaved }: Props) {
         setSaving(true);
         setError(null);
         try {
-            await analysisClient.importPosition(buildImportRequest(form));
+            await analysisClient.importBet(buildImportRequest(form));
             setSaved(true);
             setForm(null);
             setText('');

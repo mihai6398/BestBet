@@ -1,34 +1,36 @@
 import { useState } from 'react';
 import type {
-    Position,
-    PositionOutcome,
-    PositionsSummary,
-    RepricedPosition,
+    Bet,
+    BetStatus,
+    BetStats,
+    RepricedBet,
 } from '../types/domain';
 import { dateTime, money, odds, percent, percentagePoints, signedPercent } from '../lib/format';
 import { useLocale, useT } from '../lib/i18n';
 import type { Dictionary } from '../lib/i18n';
 import { VerdictBadge } from './VerdictBadge';
 
-const OUTCOMES: PositionOutcome[] = ['Pending', 'Won', 'Lost', 'Void'];
+// Every result a row can be set to straight from the table. A cash-out is not here because it needs
+// the amount paid back, which this dropdown has nowhere to ask for: it is settled from "My bets".
+const OUTCOMES: BetStatus[] = ['Open', 'Won', 'Lost', 'Void', 'HalfWon', 'HalfLost'];
 
 /** A stake in an editable box, at the precision anybody actually places one. */
 const toMoneyInput = (value: number) => String(Math.round(value * 100) / 100);
 
 interface Props {
-    positions: Position[];
-    summary: PositionsSummary | null;
+    positions: Bet[];
+    summary: BetStats | null;
     onUpdateClosingOdds: (id: number, closingOdds: number | null) => void;
     onUpdateEntryOdds: (id: number, entryOdds: number) => void;
     onUpdateStake: (id: number, stake: number) => void;
-    onUpdateOutcome: (id: number, outcome: PositionOutcome) => void;
+    onUpdateOutcome: (id: number, outcome: BetStatus) => void;
     onDelete: (id: number) => void;
     /** Re-prices an open row against the match state in the form above. */
     onReprice: (id: number) => void;
     /** Why re-pricing cannot run right now, already worded. Null when it can. */
     repriceBlocked: string | null;
     repricing: number | null;
-    repriced: Readonly<Record<number, RepricedPosition>>;
+    repriced: Readonly<Record<number, RepricedBet>>;
     onClearReprice: (id: number) => void;
 }
 
@@ -59,13 +61,13 @@ export function PositionsLogTable({
                     <dl className="metrics metrics-compact">
                         <div className="metric">
                             <dt>{t.log.savedCount}</dt>
-                            <dd>{summary.totalPositions}</dd>
+                            <dd>{summary.totalBets}</dd>
                         </div>
                         <div className="metric">
                             <dt>{t.log.pricedAtClose}</dt>
                             <dd>
-                                {summary.positionsWithClosingPrice}
-                                <span className="metric-sub">{t.log.of(summary.totalPositions)}</span>
+                                {summary.betsWithClosingPrice}
+                                <span className="metric-sub">{t.log.of(summary.totalBets)}</span>
                             </dd>
                         </div>
                         <div className="metric">
@@ -73,7 +75,7 @@ export function PositionsLogTable({
                             <dd>
                                 {summary.beatCloseRate === null ? '—' : percent(summary.beatCloseRate)}
                                 <span className="metric-sub">
-                                    {t.log.rows(summary.positionsBeatingClose)}
+                                    {t.log.rows(summary.betsBeatingClose)}
                                 </span>
                             </dd>
                         </div>
@@ -90,7 +92,7 @@ export function PositionsLogTable({
                             <dd>
                                 {money(summary.totalProfitLoss, locale)}
                                 <span className="metric-sub">
-                                    {t.log.settled(summary.settledPositions)}
+                                    {t.log.settled(summary.settledBets)}
                                 </span>
                             </dd>
                         </div>
@@ -168,16 +170,16 @@ function PositionRow({
 }: {
     t: Dictionary;
     locale: string;
-    position: Position;
+    position: Bet;
     onUpdateClosingOdds: (id: number, closingOdds: number | null) => void;
     onUpdateEntryOdds: (id: number, entryOdds: number) => void;
     onUpdateStake: (id: number, stake: number) => void;
-    onUpdateOutcome: (id: number, outcome: PositionOutcome) => void;
+    onUpdateOutcome: (id: number, outcome: BetStatus) => void;
     onDelete: (id: number) => void;
     onReprice: (id: number) => void;
     repriceBlocked: string | null;
     repricing: boolean;
-    repriced: RepricedPosition | null;
+    repriced: RepricedBet | null;
     onClearReprice: (id: number) => void;
 }) {
     const [closing, setClosing] = useState(
@@ -310,8 +312,8 @@ function PositionRow({
             <td>
                 <select
                     className="cell-input"
-                    value={position.outcome}
-                    onChange={(e) => onUpdateOutcome(position.id, e.target.value as PositionOutcome)}
+                    value={position.status}
+                    onChange={(e) => onUpdateOutcome(position.id, e.target.value as BetStatus)}
                 >
                     {OUTCOMES.map((outcome) => (
                         <option key={outcome} value={outcome}>
@@ -324,7 +326,7 @@ function PositionRow({
                 {position.profitLoss === null ? '—' : money(position.profitLoss, locale)}
             </td>
             <td className="nowrap row-actions">
-                {position.outcome === 'Pending' && (
+                {position.status === 'Open' && (
                     <button
                         type="button"
                         className="link-button"
@@ -371,7 +373,7 @@ function RepricePanel({
 }: {
     t: Dictionary;
     locale: string;
-    repriced: RepricedPosition;
+    repriced: RepricedBet;
     onClose: (id: number) => void;
 }) {
     return (

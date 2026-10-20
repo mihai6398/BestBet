@@ -6,7 +6,7 @@ import type {
     MarketSelection,
     PaceSettings,
     PreMatchRates,
-    SavePositionRequest,
+    SaveBetRequest,
 } from '../types/domain';
 
 /**
@@ -211,12 +211,12 @@ function buildPaceSettings(pace: PaceFormState): PaceSettings {
  * A log whose rows mean slightly different things depending on which button made them cannot answer
  * the only question it exists to answer.
  */
-export function buildSavePositionRequest(
+export function buildSaveBetRequest(
     odds: OddsFormState,
     live: LiveFormState,
     bankroll: number,
     result: AnalyzeResponse,
-): SavePositionRequest {
+): SaveBetRequest {
     const isLive = live.isLive;
 
     return {

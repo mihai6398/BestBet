@@ -1,4 +1,4 @@
-import type { LiveMatchState, Position } from '../types/domain';
+import type { LiveMatchState, Bet } from '../types/domain';
 import type { LiveFormState } from './forms';
 
 /**
@@ -33,7 +33,7 @@ export interface TrackForm {
 export const MAX_READINGS = 60;
 
 /** The state the bet was struck in, which is the best guess at where the match has got to. */
-export function initialTrackForm(position: Position): TrackForm {
+export function initialTrackForm(position: Bet): TrackForm {
     const text = (value: number | null) => (value === null ? '' : String(value));
 
     return {

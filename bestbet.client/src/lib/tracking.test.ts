@@ -11,7 +11,7 @@ import {
     withReading,
 } from './tracking';
 import type { TrackForm, TrackReading } from './tracking';
-import type { Position } from '../types/domain';
+import type { Bet } from '../types/domain';
 
 const form = (patch: Partial<TrackForm> = {}): TrackForm => ({
     minute: '62',
@@ -80,7 +80,7 @@ describe('starting a bet off from what is known', () => {
         goalsAway: 0,
         cumulativeXgHome: null,
         cumulativeXgAway: null,
-    } as Position;
+    } as Bet;
 
     it('uses the minute and score the bet was struck at, and leaves the unknown xG blank', () => {
         const start = initialTrackForm(position);
