@@ -185,9 +185,9 @@ Atât. În modul Development serverul pornit din Visual Studio **citește singur
 face legătura la bază din `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` și `POSTGRES_PORT`, și ia
 contul de admin din `ADMIN_EMAIL` / `ADMIN_PASSWORD`. **Migrațiile se aplică singure** la pornire.
 
-> **Ai PostgreSQL instalat direct pe Windows?** Atunci el ține deja portul 5432 și containerul bazei nu
-> poate porni. Pune `POSTGRES_PORT=5433` în `.env` — serverul îl citește de acolo, deci nu mai ai
-> nimic de schimbat.
+> Baza e publicată implicit pe portul **5433**, nu pe 5432: un PostgreSQL instalat direct pe Windows
+> ține de obicei 5432, iar containerul n-ar mai putea porni. Dacă schimbi `POSTGRES_PORT` în `.env`,
+> serverul citește valoarea de acolo, deci nu mai ai nimic de modificat.
 
 Dacă vrei alte valori doar pe calculatorul tău, fără să atingi `.env`, le poți pune în user-secrets —
 ele au întâietate:
@@ -852,7 +852,9 @@ Fără autentificare, același apel direct către `/api/analyze` primește **401
 ## 10. Când ceva nu merge
 
 **`docker compose up` se oprește cu „port is already allocated”**
-Ai deja ceva pe 8080 (sau 5432). Pune alt port în `.env`: `BESTBET_PORT=9000` sau `POSTGRES_PORT=5433`.
+Ai deja ceva pe 8080 (sau pe portul bazei). Pune alt port în `.env`: `BESTBET_PORT=9000` sau
+`POSTGRES_PORT=5434`. **Nu pune `POSTGRES_PORT=5432`** dacă ai PostgreSQL instalat pe Windows — el
+ține deja portul acela.
 
 **`docker compose up` spune „Set POSTGRES_USER in .env”**
 Nu ai fișierul `.env`. `cp .env.example .env` și completează-l.
@@ -880,11 +882,19 @@ lipsește `.env`.
 
 **Containerul bazei rămâne „Created” și nu pornește**
 Portul e deja ocupat — cel mai des de un PostgreSQL instalat pe Windows (pe 5432) sau de vechiul
-container `bestbet` (pe 8080). Pune alt port în `.env` (`POSTGRES_PORT=5433`, `BESTBET_PORT=8081`) sau
+container `bestbet` (pe 8080). Lasă `POSTGRES_PORT=5433` (implicit) sau pune alt port liber, ori
 oprește ce îl ocupă. Ca să vezi motivul exact:
 
 ```bash
 docker compose up db
+```
+
+**Butonul Start din Docker Desktop pornește și un container vechi, `bestbet`**
+E rămas de la configurația dinainte (SQLite, fără login) și ține portul 8080. Compose îl numește
+„orphan container”. Îl ștergi — datele lui vechi rămân în volumul `bestbett_bestbet-data` — cu:
+
+```bash
+docker compose up -d --remove-orphans
 ```
 
 **Login-ul merge pe calculatorul meu, dar nu de pe alt dispozitiv**

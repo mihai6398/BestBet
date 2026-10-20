@@ -97,8 +97,9 @@ compose publishes the database), and takes `ADMIN_EMAIL` / `ADMIN_PASSWORD` from
 `dotnet user-secrets` or as an environment variable wins over the file. Outside Development the file
 is not read at all.
 
-If PostgreSQL is already installed on the machine it usually holds port 5432 — set `POSTGRES_PORT` to a
-free one such as 5433, for both compose and the server.
+The database is published on port 5433 by default rather than 5432, because a PostgreSQL installed
+directly on the machine usually holds 5432 already. `POSTGRES_PORT` changes it, for compose and the
+server alike.
 
 Then open `BestBet.sln` and press F5 — Visual Studio starts the API and the Vite dev server together,
 with hot reload, at <https://localhost:5173>. In Development the migrations are applied on start.

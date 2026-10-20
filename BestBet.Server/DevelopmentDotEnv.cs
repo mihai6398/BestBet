@@ -16,6 +16,9 @@ namespace BestBet.Server;
 /// </remarks>
 public static class DevelopmentDotEnv
 {
+    /// <summary>Where docker-compose.yml publishes the database when .env does not say.</summary>
+    public const int DefaultPort = 5433;
+
     /// <summary>Adds what the nearest <c>.env</c> provides and nothing else has set yet. Development only.</summary>
     public static void AddTo(WebApplicationBuilder builder)
     {
@@ -92,7 +95,8 @@ public static class DevelopmentDotEnv
             configuration["ConnectionStrings:BestBet"] = new NpgsqlConnectionStringBuilder
             {
                 Host = "localhost",
-                Port = int.TryParse(env.GetValueOrDefault("POSTGRES_PORT"), out var port) ? port : 5432,
+                // The same default docker-compose.yml publishes the database on.
+                Port = int.TryParse(env.GetValueOrDefault("POSTGRES_PORT"), out var port) ? port : DefaultPort,
                 Database = NonEmpty(env.GetValueOrDefault("POSTGRES_DB")) ?? "bestbet",
                 Username = user,
                 Password = password,

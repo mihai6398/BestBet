@@ -76,7 +76,7 @@ public class DevelopmentDotEnvTests
         var connection = new NpgsqlConnectionStringBuilder(configuration["ConnectionStrings:BestBet"]);
 
         Assert.Equal("a;b=c'd\"e", connection.Password);
-        Assert.Equal(5432, connection.Port);
+        Assert.Equal(DevelopmentDotEnv.DefaultPort, connection.Port);
         Assert.Equal("bestbet", connection.Database);
     }
 
