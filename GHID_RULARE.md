@@ -1,12 +1,15 @@
 # Ghid de rulare — BestBet
 
-Aplicația poate fi pornită în două feluri. Alege în funcție de ce vrei să faci:
+Aplicația e privată: nimic nu răspunde fără autentificare, nu există înregistrare publică, iar
+fiecare utilizator își vede doar pariurile și balanța lui. Datele stau într-o bază PostgreSQL.
+
+Poate fi pornită în două feluri. Alege în funcție de ce vrei să faci:
 
 | | Docker | Local (Visual Studio / CLI) |
 |---|---|---|
 | **Când** | Vrei doar s-o folosești | Vrei să modifici codul |
-| **Îți trebuie** | Doar Docker Desktop | .NET 8 SDK + Node 22 |
-| **Pornire** | O comandă | Două procese |
+| **Îți trebuie** | Doar Docker Desktop | .NET 8 SDK + Node 22 + Docker (doar pentru bază) |
+| **Pornire** | O comandă | Baza în Docker + două procese |
 | **Hot reload** | Nu | Da |
 | **Adresa** | <http://localhost:8080> | <https://localhost:5173> |
 
@@ -21,22 +24,46 @@ Aplicația poate fi pornită în două feluri. Alege în funcție de ce vrei să
 
 ### Pornire
 
-Din rădăcina proiectului (`C:\Documents\GitHub\BestBet`):
+1. **Setările.** În rădăcina proiectului, copiază fișierul de exemplu:
 
-```bash
-docker compose up -d --build
-```
+   ```bash
+   cp .env.example .env
+   ```
 
-Prima rulare durează câteva minute — se descarcă imaginile de bază și se instalează pachetele npm.
-Rulările următoare sunt de ordinul secundelor, pentru că Docker refolosește straturile.
+   Deschide `.env` și completează:
 
-Deschide apoi **<http://localhost:8080>**. Atât — interfața și API-ul sunt servite de același
-container, pe același port.
+   - `POSTGRES_PASSWORD` — un șir lung, la întâmplare; nu trebuie să-l ții minte.
+   - `ADMIN_EMAIL` și `ADMIN_PASSWORD` — primul cont, cel de administrator. Parola are **cel puțin 12
+     caractere**; altfel serverul refuză să pornească și îți spune de ce în log.
+
+   Fișierul `.env` nu intră în git și nici în imaginea Docker. Nicio parolă nu e scrisă în cod.
+
+2. **Pornești:**
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   Pornesc două servicii: `db` (PostgreSQL 16) și `server` (API-ul și interfața, pe același port).
+   Serverul așteaptă ca baza să fie gata, **aplică singur migrațiile** și creează contul de admin din
+   `.env`, dacă nu există deja. Prima rulare durează câteva minute — se descarcă imaginile și se
+   instalează pachetele; următoarele sunt de ordinul secundelor.
+
+3. **Prima intrare.** Deschide **<http://localhost:8080>**, intră cu `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+   și schimbă parola din **Contul meu**. Valoarea din `.env` se citește doar cât timp contul nu
+   există, deci după schimbare nu mai e o parolă valabilă.
+
+4. **Ceilalți utilizatori** îi creezi tu, din **Conturi** (vezi §1b).
+
+> Ambele porturi sunt deschise **doar pe acest calculator** (`127.0.0.1`). Ca să intre cineva de pe
+> alt calculator, pune aplicația în spatele unui reverse proxy cu HTTPS (Caddy, nginx, Traefik) — nu
+> deschide portul 8080 în rețea. Cookie-ul de sesiune e `Secure`, deci un browser de pe alt
+> calculator îl trimite doar peste HTTPS.
 
 ### Comenzi de zi cu zi
 
 ```bash
-docker compose logs -f
+docker compose logs -f server
 ```
 
 ```bash
@@ -47,8 +74,8 @@ docker compose restart
 docker compose down
 ```
 
-`down` oprește și șterge containerul, **dar nu și datele** — jurnalul de poziții stă într-un volum
-separat. Ca să pornești din nou, `docker compose up -d`.
+`down` oprește și șterge containerele, **dar nu și datele** — baza stă într-un volum separat. Ca să
+pornești din nou, `docker compose up -d`.
 
 ### După ce modifici codul
 
@@ -57,30 +84,36 @@ docker compose up -d --build
 ```
 
 `--build` este obligatoriu: fără el Docker repornește imaginea veche și te întrebi de ce nu se vede
-modificarea.
+modificarea. Migrațiile noi se aplică singure la pornire.
 
 ### Unde sunt datele
 
-Jurnalul de poziții este un fișier SQLite într-un volum Docker numit `bestbet_bestbet-data`. Supravie-
-țuiește oricărui `restart`, `down` sau `up --build`.
+În PostgreSQL, în volumul Docker `bestbet_pgdata`. Supraviețuiește oricărui `restart`, `down` sau
+`up --build`. Cheile care semnează cookie-ul de sesiune stau în volumul `bestbet_keys`, ca o
+reconstruire a containerului să nu deconecteze pe nimeni.
 
-Ca să faci o copie de siguranță, oprește întâi containerul — SQLite ține scrierile recente într-un
-fișier `-wal` separat, iar o copie făcută „la cald” le-ar putea pierde:
+O copie de siguranță se face cu baza pornită:
 
 ```bash
-docker compose stop
+docker compose exec db pg_dump -U bestbet -d bestbet -F c -f /tmp/bestbet.dump
 ```
 
 ```bash
-docker cp bestbet:/app/data/bestbet.db ./bestbet-backup.db
+docker compose cp db:/tmp/bestbet.dump ./bestbet-backup.dump
+```
+
+Restaurarea merge invers (suprascrie ce e acum în bază):
+
+```bash
+docker compose cp ./bestbet-backup.dump db:/tmp/bestbet.dump
 ```
 
 ```bash
-docker compose start
+docker compose exec db pg_restore -U bestbet -d bestbet --clean --if-exists /tmp/bestbet.dump
 ```
 
-Restaurarea merge invers: `docker compose stop`, apoi
-`docker cp ./bestbet-backup.db bestbet:/app/data/bestbet.db`, apoi `docker compose start`.
+Dacă ai schimbat `POSTGRES_USER` sau `POSTGRES_DB` în `.env`, folosește valorile tale în loc de
+`bestbet`.
 
 Ca să ștergi tot și s-o iei de la zero:
 
@@ -88,16 +121,43 @@ Ca să ștergi tot și s-o iei de la zero:
 docker compose down -v
 ```
 
-`-v` șterge și volumul. **Datele dispar definitiv.**
+`-v` șterge și volumele. **Datele și conturile dispar definitiv.**
 
 ### Reglaje
 
-Se schimbă în `docker-compose.yml`:
+Se schimbă în `.env`, apoi `docker compose up -d`:
 
-- **Alt port**, dacă 8080 e ocupat — schimbă doar cifra din stânga: `"9000:8080"`, apoi
-  <http://localhost:9000>.
-- **Swagger**, dacă vrei să te joci cu API-ul direct — pune `ASPNETCORE_ENVIRONMENT: Development` și
-  vei avea documentația interactivă la `/swagger`. În `Production` este dezactivat intenționat.
+- **Alt port**, dacă 8080 e ocupat — `BESTBET_PORT=9000`, apoi <http://localhost:9000>. La fel
+  `POSTGRES_PORT` pentru bază.
+- **Înregistrare publică** — `AUTH_ALLOW_REGISTRATION=true`. Lasă-o oprită: aplicația e privată.
+- **Swagger**, dacă vrei să te joci cu API-ul direct — pune `ASPNETCORE_ENVIRONMENT: Development` în
+  `docker-compose.yml` și vei avea documentația interactivă la `/swagger`. În `Production` este
+  dezactivat intenționat.
+
+---
+
+## 1b. Conturi și securitate
+
+**Conturile le face administratorul.** Nu există pagină de înregistrare. Din **Conturi** creezi un
+cont cu email și o parolă temporară (butonul *Generează* îți dă una). Parola temporară apare **o
+singură dată** — o trimiți omului pe un canal sigur. La prima intrare e obligat să o schimbe; până
+atunci restul aplicației nu-i răspunde, nici din interfață, nici din API. Așa tu nu știi niciodată o
+parolă folosită.
+
+Tot din **Conturi** poți **dezactiva** un cont (nu mai poate intra, iar sesiunile deschise se închid
+în cel mult un minut), îl poți reactiva, sau îi poți **reseta parola** dacă a uitat-o (primește din
+nou una temporară).
+
+**Ce te apără:**
+
+- **Încercări de ghicire:** după 5 parole greșite contul se blochează 15 minute, iar intrarea e
+  limitată și pe adresă — câteva încercări pe minut. Mesajul de eroare e același pentru email greșit,
+  parolă greșită sau cont blocat, ca nimeni să nu poată afla ce emailuri au cont.
+- **Sesiunea** stă într-un cookie pe care scripturile din pagină nu-l pot citi și pe care alt site nu-l
+  poate trimite. În browser nu se păstrează niciun token.
+- **Fiecare cu datele lui:** pariurile și balanța au proprietar, luat din sesiune, nu din ce trimite
+  browserul. Un pariu al altcuiva arată exact ca unul care nu există.
+- Orice punct nou adăugat în API e protejat implicit — trebuie deschis explicit, nu închis.
 
 ---
 
@@ -113,10 +173,35 @@ Se schimbă în `docker-compose.yml`:
   dotnet dev-certs https --trust
   ```
 
+### Baza de date
+
+Rulează doar baza în Docker (îți trebuie `.env`, ca la §1):
+
+```bash
+docker compose up -d db
+```
+
+Apoi spune-i serverului unde e baza și care e primul cont. Se țin în **user-secrets**, în afara
+proiectului, nu în cod:
+
+```bash
+dotnet user-secrets set ConnectionStrings:BestBet "Host=localhost;Port=5432;Database=bestbet;Username=bestbet;Password=PAROLA_DIN_ENV" --project BestBet.Server
+```
+
+```bash
+dotnet user-secrets set ADMIN_EMAIL "tu@exemplu.ro" --project BestBet.Server
+```
+
+```bash
+dotnet user-secrets set ADMIN_PASSWORD "cel-putin-12-caractere" --project BestBet.Server
+```
+
+În modul Development, **migrațiile se aplică singure** la pornirea serverului.
+
 ### Din Visual Studio
 
 Deschide `BestBet.sln` și apasă **F5**. Pornește singur și API-ul, și serverul Vite, și îți deschide
-browserul. Nu mai ai nimic de făcut.
+browserul. Intri cu contul din user-secrets.
 
 ### Din linia de comandă
 
@@ -137,10 +222,23 @@ npm --prefix bestbet.client run dev
 ```
 
 Deschide **<https://localhost:5173>**. Vite trimite mai departe tot ce începe cu `/api` către API-ul
-de pe `https://localhost:7243`, deci nu ai nevoie de configurări suplimentare.
+de pe `https://localhost:7243`. Browserul vorbește doar cu Vite, deci cookie-ul de sesiune merge
+exact ca în producție, fără configurări suplimentare.
 
 Modificările din `bestbet.client/src` apar instantaneu în browser. Modificările din C# cer repornirea
 primului proces (sau `dotnet watch run` în loc de `dotnet run`).
+
+### O migrație nouă
+
+După ce schimbi modelul de date (uneltele EF sunt fixate în `.config/dotnet-tools.json`):
+
+```bash
+dotnet tool restore
+```
+
+```bash
+dotnet dotnet-ef migrations add NumeleMigratiei --project BestBet.Server --output-dir Data/Migrations
+```
 
 ---
 
@@ -532,7 +630,35 @@ test de avantaj ca orice altceva.
 
 ---
 
-## 6. Jurnalul de poziții: corectare și recalculare
+## 6. Pariurile mele: salvare, închidere, balanță și recalculare
+
+### Salvezi un pariu
+
+Sub rezultatul unei analize apeși **Salvează ca pariu…**. Se deschide un formular cu cota,
+probabilitatea și avantajul deja completate din analiză; adaugi miza pusă efectiv, casa de pariuri,
+competiția și, dacă vrei, ora de start și note. Un pariu făcut fără analiză îl adaugi de mână, din
+**Pariurile mele → Adaugă pariu**.
+
+### Pagina „Pariurile mele”
+
+- **Rezumatul:** câte pariuri, câte deschise, cât e în joc, cât ai mizat pe cele închise, profitul,
+  **yield-ul** (profit împărțit la suma mizată pe pariurile închise), **ROI-ul** (profit împărțit la
+  banii depuși, minus retragerile) și cât de des bați cota de închidere.
+- **Tab-urile Deschise / Închise.** Un pariu deschis îl **închizi** cu rezultatul: câștigat, pierdut,
+  anulat, câștigat pe jumătate, pierdut pe jumătate sau cash-out (la cash-out scrii suma încasată).
+  Înainte să confirmi vezi cât încasezi și ce profit iese. Îl poți **edita** sau **șterge** (cu
+  confirmare); unul închis îl poți **redeschide** dacă ai greșit rezultatul.
+
+### Balanța
+
+Balanța nu se scrie de mână și nu se stochează: e **depunerile, minus retragerile, plus profitul
+pariurilor închise**, calculată la fiecare citire. Așa nu poate ajunge să spună altceva decât
+pariurile, iar dacă corectezi un rezultat, balanța se corectează cu el. Prima depunere e balanța ta
+inițială. **Disponibil** înseamnă balanța minus ce e în joc pe pariuri deschise; o retragere mai mare
+decât atât e refuzată.
+
+Calculatorul pornește miza de la balanța din cont. În caseta *Capital* poți scrie altă sumă pentru
+un singur calcul, fără să atingi balanța reală — butonul *Folosește balanța* te întoarce la ea.
 
 ### Corectezi cota și miza
 
@@ -680,12 +806,17 @@ l-a primit primește `401`.
 dotnet test
 ```
 
-335 de teste, sub o secundă. Printre ele, în
+396 de teste, în câteva secunde. Printre ele, în
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`, exemplele numerice din specificație —
 acelea sunt definiția lui „matematica e încă bună”. Dacă vreunul pică, se repară întâi el.
 
-Pentru client (225 de teste pe parserele de import, pe citirea capturilor, pe analiza în bloc și pe
-monitorizare):
+Testele de integrare pornesc aplicația întreagă peste un PostgreSQL adevărat, într-un container
+temporar, deci **Docker trebuie să fie pornit**. Ele verifică, printre altele, că orice punct din API
+răspunde 401 fără autentificare, că parola nu se poate ghici și că un utilizator nu poate citi,
+modifica sau șterge pariurile ori banii altuia.
+
+Pentru client (250 de teste pe parserele de import, pe citirea capturilor, pe analiza în bloc, pe
+monitorizare și pe formularele de pariuri):
 
 ```bash
 npm --prefix bestbet.client test
@@ -703,24 +834,53 @@ npm --prefix bestbet.client run build
 
 ## 9. Verificare rapidă că merge
 
-După pornire, indiferent de mod, cazul de acceptanță din specificație (Sunderland–Arsenal, minutul 45)
-trebuie să dea exact aceste cifre:
+După pornire, intră în aplicație și deschide **Lipește un meci ca JSON**. Lipește asta — cazul de
+acceptanță din specificație, Sunderland–Arsenal la minutul 45:
 
-```bash
-curl -s -X POST http://localhost:8080/api/analyze -H "Content-Type: application/json" -d "{\"market\":{\"kind\":\"NextGoal\",\"label\":\"Primul gol: 2\",\"decimalOdds\":1.60,\"siblingOdds\":[3.20,4.50]},\"liveState\":{\"minutePlayed\":45,\"cumulativeXgHome\":0.13,\"cumulativeXgAway\":0.86,\"currentGoalsHome\":0,\"currentGoalsAway\":0,\"isPreMatch\":false},\"bankroll\":263.0,\"selection\":\"NextGoalAway\"}"
+```json
+{"match":"Sunderland - Arsenal","market":"NextGoal","selection":"away","odds":1.60,"siblingOdds":[3.20,4.50],"minute":45,"xgHome":0.13,"xgAway":0.86,"bankroll":263}
 ```
 
-Estimarea proprie trebuie să fie **0.5459**, EV **−0.1266**, verdictul **Skip**, miza **0**.
+Cifrele din specificație sunt pentru modelul **fără** corecții de ritm, așa că debifează întâi
+**Corectează ritmul și starea scorului**. Apoi apasă **Analizează**: estimarea proprie trebuie să fie
+**54.6%** (0.5459), linia corectă a pieței 53.9%, avantajul +0.7pp, EV **−0.1266**, verdictul
+**Skip**, miza **0**. Cu corecțiile pornite (cum e implicit) estimarea iese altfel — e normal, nu o
+eroare.
+
+Fără autentificare, același apel direct către `/api/analyze` primește **401** — e corect, nu o eroare.
 
 ---
 
 ## 10. Când ceva nu merge
 
 **`docker compose up` se oprește cu „port is already allocated”**
-Ai deja ceva pe 8080. Schimbă portul din stânga în `docker-compose.yml` (`"9000:8080"`).
+Ai deja ceva pe 8080 (sau 5432). Pune alt port în `.env`: `BESTBET_PORT=9000` sau `POSTGRES_PORT=5433`.
 
-**Pagina se încarcă, dar tabelul de poziții e gol și apare o eroare de rețea**
-Rulezi în modul local și API-ul nu e pornit. Interfața are nevoie de ambele procese.
+**`docker compose up` spune „Set POSTGRES_USER in .env”**
+Nu ai fișierul `.env`. `cp .env.example .env` și completează-l.
+
+**Nu pot intra: nu există niciun cont**
+`ADMIN_EMAIL` sau `ADMIN_PASSWORD` lipsesc. Serverul scrie asta în log la pornire
+(`docker compose logs server`). Completează-le și repornește; contul se creează o singură dată.
+
+**Containerul `server` se tot repornește**
+Uită-te în `docker compose logs server`. Cel mai des: parola de admin are sub 12 caractere, sau baza nu
+e accesibilă cu datele din `.env`.
+
+**Pe pagină scrie „Serverul nu răspunde”**
+Rulezi în modul local și API-ul nu e pornit, sau nu ajunge la bază (`docker compose up -d db`).
+Interfața are nevoie de API, iar API-ul de bază.
+
+**Serverul local nu pornește: „The connection string 'BestBet' is not set”**
+Lipsește user-secret-ul cu legătura la bază — vezi §2, *Baza de date*.
+
+**Login-ul merge pe calculatorul meu, dar nu de pe alt dispozitiv**
+Cookie-ul de sesiune e `Secure`: de pe alt dispozitiv browserul îl trimite doar peste HTTPS. Pune
+aplicația în spatele unui reverse proxy cu HTTPS.
+
+**„Prea multe încercări de pe această adresă”**
+Limita de intrare pe adresă. Așteaptă un minut. Dacă un cont anume e blocat după 5 parole greșite, se
+deblochează singur după 15 minute, sau îl deblochează administratorul din **Conturi** (*Activează*).
 
 **`npm run dev` sau `npm run build` crapă cu „Cannot find native binding”**
 Este [un bug cunoscut al npm](https://github.com/npm/cli/issues/4828) cu dependențele opționale.
@@ -746,7 +906,11 @@ Ai uitat `--build`. `docker compose up -d --build`.
 **Vreau să văd ce se întâmplă înăuntrul containerului**
 
 ```bash
-docker compose exec bestbet sh
+docker compose exec server sh
 ```
 
-Baza de date este la `/app/data/bestbet.db`.
+Baza de date se deschide cu:
+
+```bash
+docker compose exec db psql -U bestbet -d bestbet
+```
