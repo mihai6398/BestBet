@@ -67,10 +67,16 @@ export default defineConfig(({ command }) => ({
         },
     },
     server: {
+        // The login cookie works in development because the browser only ever talks to this origin:
+        // /api goes through the proxy, so the cookie is set for the dev server's own host and every
+        // request is same-site, which is what SameSite=Strict asks for. The dev server is HTTPS, so
+        // the cookie's Secure flag is satisfied too. Any Domain the server put on the cookie is
+        // dropped, so it can never be scoped to the backend's port instead of this one.
         proxy: {
             '^/api': {
                 target,
                 secure: false,
+                cookieDomainRewrite: '',
             },
         },
         port: 5173,

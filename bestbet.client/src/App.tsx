@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { analysisClient, ApiError } from './api/analysisClient';
+import { bankrollClient } from './api/accountClient';
 import { BankrollInput } from './components/BankrollInput';
+import { SaveBetDialog } from './components/BetDialogs';
 import { BatchResultsTable } from './components/BatchResultsTable';
 import { EdgeResultCard } from './components/EdgeResultCard';
 import { LiveMonitorPanel } from './components/LiveMonitorPanel';
@@ -25,7 +27,7 @@ import {
     defaultPaceForm,
 } from './lib/forms';
 import type { LiveFormState, OddsFormState, PaceFormState, ReferenceState } from './lib/forms';
-import { LANGUAGES, useLanguage } from './lib/i18n';
+import { useLanguage } from './lib/i18n';
 import { POLL_INTERVAL_SECONDS, sameMatch } from './lib/liveFeed';
 import { readingToParsedStats } from './lib/providerFeed';
 import { parseStatsPaste } from './lib/statsPaste';
@@ -40,13 +42,25 @@ import type {
     PreMatchRates,
     ProviderReading,
     RepricedBet,
+    SaveBetRequest,
+    BankrollSummary,
 } from './types/domain';
 
-function App() {
-    const { lang, setLang, t } = useLanguage();
+interface AppProps {
+    /** False while another page is open: the calculator stays mounted but has nothing to refresh. */
+    active?: boolean;
+}
 
-    // Bankroll persists across reloads; nothing else does, because nothing else should be reused.
-    const [bankroll, setBankroll] = useLocalStorage('bestbet.bankroll', 100);
+function App({ active = true }: AppProps) {
+    const { t } = useLanguage();
+
+    // The bankroll is the account's balance, which the server works out from deposits, withdrawals
+    // and settled bets. It can be overridden for one calculation — a pasted match that names its own,
+    // or a what-if typed into the box — without touching the real balance.
+    const [account, setAccount] = useState<BankrollSummary | null>(null);
+    const [accountVersion, setAccountVersion] = useState(0);
+    const [bankrollOverride, setBankrollOverride] = useState<number | null>(null);
+    const bankroll = bankrollOverride ?? account?.balance ?? 0;
     const [odds, setOdds] = useState<OddsFormState>(() => defaultOddsForm());
     const [live, setLive] = useState<LiveFormState>(defaultLiveForm);
     const [pace, setPace] = useState<PaceFormState>(defaultPaceForm);
@@ -66,7 +80,8 @@ function App() {
     const [result, setResult] = useState<AnalyzeResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [analysing, setAnalysing] = useState(false);
-    const [saving, setSaving] = useState(false);
+    // An analysis waiting in the "save as a bet" form, with what it could not know still to be added.
+    const [saveDraft, setSaveDraft] = useState<SaveBetRequest | null>(null);
     const [savedId, setSavedId] = useState<number | null>(null);
 
     // One capture's worth of outcomes, all priced against the same match state.
@@ -122,6 +137,10 @@ function App() {
     const refreshLog = useCallback(() => setLogVersion((version) => version + 1), []);
 
     useEffect(() => {
+        // Hidden behind another page, there is nothing to show; coming back fetches again, because
+        // bets may have been settled or edited there in the meantime.
+        if (!active) return undefined;
+
         let cancelled = false;
 
         void (async () => {
@@ -141,14 +160,32 @@ function App() {
         return () => {
             cancelled = true;
         };
-    }, [logVersion]);
+    }, [logVersion, active]);
+
+    useEffect(() => {
+        if (!active) return undefined;
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                const summary = await bankrollClient.get();
+                if (!cancelled) setAccount(summary);
+            } catch {
+                // The box then shows zero and says there is no balance yet, which is the honest reading.
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [active, accountVersion]);
 
     // A pasted match replaces the whole form, so any result on screen belongs to the previous one.
     const applyQuickImport = (imported: QuickImportResult) => {
         setOdds(imported.odds);
         setLive(imported.live);
         if (imported.bankroll !== null) {
-            setBankroll(imported.bankroll);
+            setBankrollOverride(imported.bankroll);
         }
         setResult(null);
         setError(null);
@@ -195,20 +232,19 @@ function App() {
         }
     };
 
-    const saveBet = async () => {
+    /** Opens the bet form with the analysis already in it; the stake and the details are added there. */
+    const saveBet = () => {
         if (!result) return;
-        setSaving(true);
-        try {
-            const saved = await analysisClient.saveBet(
-                buildSaveBetRequest(odds, live, bankroll, result),
-            );
-            setSavedId(saved.id);
-            refreshLog();
-        } catch (e) {
-            setError(e instanceof Error ? e.message : t.app.saveError);
-        } finally {
-            setSaving(false);
-        }
+        setSaveDraft(buildSaveBetRequest(odds, live, bankroll, result));
+    };
+
+    /** Errors stay in the form, which shows the server's own message. */
+    const confirmSave = async (request: SaveBetRequest) => {
+        const saved = await analysisClient.saveBet(request);
+        setSavedId(saved.id);
+        setSaveDraft(null);
+        refreshLog();
+        setAccountVersion((version) => version + 1);
     };
 
     // --- One capture, every selection ---------------------------------------
@@ -595,19 +631,6 @@ function App() {
             <header className="app-head">
                 <div className="app-head-row">
                     <h1>{t.app.title}</h1>
-                    <div className="lang-switch" role="group" aria-label={t.app.language}>
-                        {LANGUAGES.map((code) => (
-                            <button
-                                key={code}
-                                type="button"
-                                className={code === lang ? 'lang-active' : undefined}
-                                aria-pressed={code === lang}
-                                onClick={() => setLang(code)}
-                            >
-                                {t.langName[code]}
-                            </button>
-                        ))}
-                    </div>
                 </div>
                 <p className="tagline">{t.app.tagline}</p>
             </header>
@@ -696,7 +719,13 @@ function App() {
                         bankroll={bankroll}
                         onImport={applyQuickImport}
                     />
-                    <BankrollInput value={bankroll} onChange={setBankroll} />
+                    <BankrollInput
+                        value={bankroll}
+                        account={account}
+                        overridden={bankrollOverride !== null}
+                        onChange={setBankrollOverride}
+                        onUseAccount={() => setBankrollOverride(null)}
+                    />
                     <OddsInputForm value={odds} onChange={setOdds} />
                     <LiveStatsInputForm
                         value={live}
@@ -733,7 +762,7 @@ function App() {
                         <EdgeResultCard
                             result={result}
                             onSave={saveBet}
-                            saving={saving}
+                            saving={saveDraft !== null}
                             saved={savedId !== null}
                             overtakenAtMinute={
                                 watching && resultMinute !== null && resultMinute !== live.minutePlayed
@@ -768,6 +797,10 @@ function App() {
             />
 
             <footer className="disclaimer">{t.app.disclaimer}</footer>
+
+            {saveDraft && (
+                <SaveBetDialog draft={saveDraft} onSave={confirmSave} onClose={() => setSaveDraft(null)} />
+            )}
         </div>
     );
 }
