@@ -1,25 +1,65 @@
+# Two services: PostgreSQL, and the app (API + the built SPA on one port).
+#
+# Every credential comes from .env next to this file — copy .env.example to .env and fill it in.
+# Nothing secret is written here.
+#
+# For development you can start just the database and run the server and Vite from the IDE:
+#   docker compose up -d db
+
 services:
-  bestbet:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bestbet}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env (copy .env.example)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (copy .env.example)}
+    volumes:
+      - bestbet_pgdata:/var/lib/postgresql/data
+    ports:
+      # Published on this machine only, for the server run from the IDE. Nothing outside it can reach
+      # the database.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      # $$ so compose leaves the variables for the shell inside the container to expand.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  server:
     build:
       context: .
       dockerfile: Dockerfile
     image: bestbet:latest
-    container_name: bestbet
-    ports:
-      # Left side is the port on your machine — change it if 8080 is taken.
-      - "8080:8080"
-    environment:
-      # Production keeps Swagger and detailed errors off. Set this to Development if you want the
-      # Swagger UI at /swagger while poking at the API by hand.
-      ASPNETCORE_ENVIRONMENT: Production
-      # Optional. A free key from https://dashboard.api-football.com enables the pre-match model
-      # (team form and player scoring). Put APIFOOTBALL_KEY=... in a .env file next to this one.
-      ApiFootball__Key: ${APIFOOTBALL_KEY:-}
-    volumes:
-      # The positions log. Named volume rather than a bind mount so the container's non-root user
-      # keeps the write permission it was given in the image.
-      - bestbet-data:/app/data
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Localhost only by default. The session cookie is Secure, so a browser on another machine will
+      # only send it over HTTPS: to open the app to other people, put it behind an HTTPS reverse proxy
+      # rather than publishing this port on the network.
+      - "${BESTBET_BIND:-127.0.0.1}:${BESTBET_PORT:-8080}:8080"
+    environment:
+      # Production keeps Swagger and detailed errors off.
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__BestBet: "Host=db;Port=5432;Database=${POSTGRES_DB:-bestbet};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      # Brings the schema up to date on every start, so `docker compose up` is the whole deployment.
+      Database__MigrateOnStartup: "true"
+      # The first admin, created once if that account does not exist yet. Change the password from the
+      # app after the first sign-in; the value here is not read again once the account exists.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      Auth__AllowRegistration: ${AUTH_ALLOW_REGISTRATION:-false}
+      # Optional. A free key from https://dashboard.api-football.com enables the pre-match model.
+      ApiFootball__Key: ${APIFOOTBALL_KEY:-}
+      # The keys that sign the login cookie, on a volume so a rebuilt container signs nobody out.
+      DataProtection__KeysPath: /app/keys
+    volumes:
+      - bestbet_keys:/app/keys
 
 volumes:
-  bestbet-data:
+  bestbet_pgdata:
+  bestbet_keys:

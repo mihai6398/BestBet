@@ -21,6 +21,9 @@ export const odds = (value: number) => value.toFixed(2);
 export const money = (value: number, locale?: string) =>
     value.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** A profit or loss: a plus on a gain, so a result reads at a glance without a colour. */
+export const signedMoney = (value: number, locale?: string) => `${value > 0 ? '+' : ''}${money(value, locale)}`;
+
 /** Whole dollars, for a traded volume where the cents are noise and the magnitude is the point. */
 export const dollars = (value: number, locale?: string) =>
     `$${Math.round(value).toLocaleString(locale, { maximumFractionDigits: 0 })}`;

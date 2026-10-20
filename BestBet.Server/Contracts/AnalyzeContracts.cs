@@ -25,7 +25,8 @@ namespace BestBet.Contracts;
 /// <param name="ReferenceSource">What to call the reference on screen, e.g. "Polymarket".</param>
 /// <param name="PreMatch">Each side's expected goals from the pre-match model. When present on a match
 /// that has not started, it replaces <paramref name="ManualOwnProbability"/>: the probability is
-/// priced off these rates for whichever market and side the request names.</param>
+/// priced off these rates for whichever market and side the request names. On a live match it is the
+/// target the pace is shrunk towards, in place of the league average.</param>
 public record AnalyzeRequest(
     MarketOdds Market,
     LiveMatchState? LiveState,

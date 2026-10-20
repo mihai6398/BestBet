@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { analysisClient, ApiError } from './api/analysisClient';
+import { bankrollClient } from './api/accountClient';
 import { BankrollInput } from './components/BankrollInput';
+import { SaveBetDialog } from './components/BetDialogs';
 import { BatchResultsTable } from './components/BatchResultsTable';
 import { EdgeResultCard } from './components/EdgeResultCard';
 import { LiveMonitorPanel } from './components/LiveMonitorPanel';
@@ -19,13 +21,13 @@ import { batchBlockedBy, oddsFormFor, runBatch } from './lib/batch';
 import type { BatchCandidate, BatchRow } from './lib/batch';
 import {
     buildAnalyzeRequest,
-    buildSavePositionRequest,
+    buildSaveBetRequest,
     defaultLiveForm,
     defaultOddsForm,
     defaultPaceForm,
 } from './lib/forms';
 import type { LiveFormState, OddsFormState, PaceFormState, ReferenceState } from './lib/forms';
-import { LANGUAGES, useLanguage } from './lib/i18n';
+import { useLanguage } from './lib/i18n';
 import { POLL_INTERVAL_SECONDS, sameMatch } from './lib/liveFeed';
 import { readingToParsedStats } from './lib/providerFeed';
 import { parseStatsPaste } from './lib/statsPaste';
@@ -34,19 +36,31 @@ import type {
     AnalyzeResponse,
     LiveFeedState,
     LiveMatchState,
-    Position,
-    PositionOutcome,
-    PositionsSummary,
+    Bet,
+    BetStatus,
+    BetStats,
     PreMatchRates,
     ProviderReading,
-    RepricedPosition,
+    RepricedBet,
+    SaveBetRequest,
+    BankrollSummary,
 } from './types/domain';
 
-function App() {
-    const { lang, setLang, t } = useLanguage();
+interface AppProps {
+    /** False while another page is open: the calculator stays mounted but has nothing to refresh. */
+    active?: boolean;
+}
 
-    // Bankroll persists across reloads; nothing else does, because nothing else should be reused.
-    const [bankroll, setBankroll] = useLocalStorage('bestbet.bankroll', 100);
+function App({ active = true }: AppProps) {
+    const { t } = useLanguage();
+
+    // The bankroll is the account's balance, which the server works out from deposits, withdrawals
+    // and settled bets. It can be overridden for one calculation — a pasted match that names its own,
+    // or a what-if typed into the box — without touching the real balance.
+    const [account, setAccount] = useState<BankrollSummary | null>(null);
+    const [accountVersion, setAccountVersion] = useState(0);
+    const [bankrollOverride, setBankrollOverride] = useState<number | null>(null);
+    const bankroll = bankrollOverride ?? account?.balance ?? 0;
     const [odds, setOdds] = useState<OddsFormState>(() => defaultOddsForm());
     const [live, setLive] = useState<LiveFormState>(defaultLiveForm);
     const [pace, setPace] = useState<PaceFormState>(defaultPaceForm);
@@ -56,13 +70,18 @@ function App() {
     const [reference, setReference] = useState<ReferenceState | null>(null);
 
     // Expected goals from the pre-match model, once the user has chosen to price the market with
-    // them. Null means the probability is typed by hand, as it was before the model existed.
+    // them. Null means the probability is typed by hand, as it was before the model existed. Once
+    // the match is under way the same rates are what the live pace is pulled towards.
     const [preMatch, setPreMatch] = useState<PreMatchRates | null>(null);
+    // The match those rates were worked out for, so an open bet on some other match is never
+    // re-priced against them.
+    const [preMatchFor, setPreMatchFor] = useState('');
 
     const [result, setResult] = useState<AnalyzeResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [analysing, setAnalysing] = useState(false);
-    const [saving, setSaving] = useState(false);
+    // An analysis waiting in the "save as a bet" form, with what it could not know still to be added.
+    const [saveDraft, setSaveDraft] = useState<SaveBetRequest | null>(null);
     const [savedId, setSavedId] = useState<number | null>(null);
 
     // One capture's worth of outcomes, all priced against the same match state.
@@ -73,12 +92,12 @@ function App() {
     const [batchSaved, setBatchSaved] = useState<ReadonlySet<string>>(new Set());
     const [batchSaving, setBatchSaving] = useState<string | null>(null);
 
-    const [positions, setPositions] = useState<Position[]>([]);
-    const [summary, setSummary] = useState<PositionsSummary | null>(null);
+    const [positions, setPositions] = useState<Bet[]>([]);
+    const [summary, setSummary] = useState<BetStats | null>(null);
 
     // Re-priced open positions, keyed by row. Computed on demand and never persisted, so this lives
     // in the component rather than on the row the server sends back.
-    const [repriced, setRepriced] = useState<Record<number, RepricedPosition>>({});
+    const [repriced, setRepriced] = useState<Record<number, RepricedBet>>({});
     const [repricing, setRepricing] = useState<number | null>(null);
 
     // Readings pushed in from the match page the user has open. See lib/liveFeed.ts for why they
@@ -118,13 +137,17 @@ function App() {
     const refreshLog = useCallback(() => setLogVersion((version) => version + 1), []);
 
     useEffect(() => {
+        // Hidden behind another page, there is nothing to show; coming back fetches again, because
+        // bets may have been settled or edited there in the meantime.
+        if (!active) return undefined;
+
         let cancelled = false;
 
         void (async () => {
             try {
                 const [rows, totals] = await Promise.all([
-                    analysisClient.listPositions(),
-                    analysisClient.positionsSummary(),
+                    analysisClient.listBets(),
+                    analysisClient.betStats(),
                 ]);
                 if (cancelled) return;
                 setPositions(rows);
@@ -137,14 +160,32 @@ function App() {
         return () => {
             cancelled = true;
         };
-    }, [logVersion]);
+    }, [logVersion, active]);
+
+    useEffect(() => {
+        if (!active) return undefined;
+
+        let cancelled = false;
+        void (async () => {
+            try {
+                const summary = await bankrollClient.get();
+                if (!cancelled) setAccount(summary);
+            } catch {
+                // The box then shows zero and says there is no balance yet, which is the honest reading.
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [active, accountVersion]);
 
     // A pasted match replaces the whole form, so any result on screen belongs to the previous one.
     const applyQuickImport = (imported: QuickImportResult) => {
         setOdds(imported.odds);
         setLive(imported.live);
         if (imported.bankroll !== null) {
-            setBankroll(imported.bankroll);
+            setBankrollOverride(imported.bankroll);
         }
         setResult(null);
         setError(null);
@@ -191,20 +232,19 @@ function App() {
         }
     };
 
-    const savePosition = async () => {
+    /** Opens the bet form with the analysis already in it; the stake and the details are added there. */
+    const saveBet = () => {
         if (!result) return;
-        setSaving(true);
-        try {
-            const saved = await analysisClient.savePosition(
-                buildSavePositionRequest(odds, live, bankroll, result),
-            );
-            setSavedId(saved.id);
-            refreshLog();
-        } catch (e) {
-            setError(e instanceof Error ? e.message : t.app.saveError);
-        } finally {
-            setSaving(false);
-        }
+        setSaveDraft(buildSaveBetRequest(odds, live, bankroll, result));
+    };
+
+    /** Errors stay in the form, which shows the server's own message. */
+    const confirmSave = async (request: SaveBetRequest) => {
+        const saved = await analysisClient.saveBet(request);
+        setSavedId(saved.id);
+        setSaveDraft(null);
+        refreshLog();
+        setAccountVersion((version) => version + 1);
     };
 
     // --- One capture, every selection ---------------------------------------
@@ -248,8 +288,8 @@ function App() {
         if (!row.result) return;
         setBatchSaving(row.candidate.id);
         try {
-            await analysisClient.savePosition(
-                buildSavePositionRequest(
+            await analysisClient.saveBet(
+                buildSaveBetRequest(
                     oddsFormFor(odds, row.candidate),
                     live,
                     bankroll,
@@ -317,7 +357,7 @@ function App() {
         () =>
             positions.filter(
                 (position) =>
-                    position.outcome === 'Pending' &&
+                    position.status === 'Open' &&
                     sameMatch(position.matchLabel, feedParsed?.matchLabel),
             ),
         [positions, feedParsed?.matchLabel],
@@ -465,14 +505,20 @@ function App() {
     useEffect(() => {
         if (!watching || !readingKey || !feedLiveState || tracked.length === 0) return;
 
-        const reading = `${readingKey}|${tracked.map((position) => position.id).join(',')}`;
+        // The prior is part of the key: applying or dropping the pre-match numbers mid-match has
+        // to re-price the open bets, not wait for the next reading to happen along.
+        const prior = preMatch ? `${preMatch.homeExpectedGoals}/${preMatch.awayExpectedGoals}@${preMatchFor}` : '';
+        const reading = `${readingKey}|${tracked.map((position) => position.id).join(',')}|${prior}`;
         if (repricedReading.current === reading) return;
         repricedReading.current = reading;
 
         void Promise.all(
             tracked.map(async (position) => {
                 try {
-                    const now = await analysisClient.reprice(position.id, { liveState: feedLiveState });
+                    const now = await analysisClient.reprice(position.id, {
+                        liveState: feedLiveState,
+                        preMatch: preMatch && sameMatch(position.matchLabel, preMatchFor) ? preMatch : undefined,
+                    });
                     setRepriced((current) => ({ ...current, [position.id]: now }));
                 } catch (e) {
                     // One row that cannot be re-priced must not stop the others — but it must not
@@ -482,7 +528,7 @@ function App() {
                 }
             }),
         );
-    }, [watching, readingKey, feedLiveState, tracked, t]);
+    }, [watching, readingKey, feedLiveState, tracked, preMatch, preMatchFor, t]);
 
     const blocked = batchBlockedBy(live);
     const blockedReason =
@@ -509,7 +555,11 @@ function App() {
                 isPreMatch: false,
             };
 
-            const now = await analysisClient.reprice(id, { liveState });
+            const matchLabel = positions.find((position) => position.id === id)?.matchLabel;
+            const now = await analysisClient.reprice(id, {
+                liveState,
+                preMatch: preMatch && sameMatch(matchLabel, preMatchFor) ? preMatch : undefined,
+            });
             setRepriced((current) => ({ ...current, [id]: now }));
         } catch (e) {
             setError(e instanceof Error ? e.message : t.reprice.failed);
@@ -529,7 +579,7 @@ function App() {
 
     const updateClosingOdds = async (id: number, closingDecimalOdds: number | null) => {
         try {
-            await analysisClient.updatePosition(id, { closingDecimalOdds });
+            await analysisClient.updateBet(id, { closingDecimalOdds });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.updateError);
@@ -542,7 +592,7 @@ function App() {
      */
     const updateEntryOdds = async (id: number, entryDecimalOdds: number) => {
         try {
-            await analysisClient.updatePosition(id, { entryDecimalOdds });
+            await analysisClient.updateBet(id, { entryDecimalOdds });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.updateError);
@@ -551,25 +601,25 @@ function App() {
 
     const updateStake = async (id: number, stakeAmount: number) => {
         try {
-            await analysisClient.updatePosition(id, { stakeAmount });
+            await analysisClient.updateBet(id, { stakeAmount });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.updateError);
         }
     };
 
-    const updateOutcome = async (id: number, outcome: PositionOutcome) => {
+    const updateOutcome = async (id: number, outcome: BetStatus) => {
         try {
-            await analysisClient.updatePosition(id, { outcome });
+            await analysisClient.updateBet(id, { status: outcome });
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.outcomeError);
         }
     };
 
-    const deletePosition = async (id: number) => {
+    const deleteBet = async (id: number) => {
         try {
-            await analysisClient.deletePosition(id);
+            await analysisClient.deleteBet(id);
             refreshLog();
         } catch (e) {
             setError(e instanceof Error ? e.message : t.app.deleteError);
@@ -581,19 +631,6 @@ function App() {
             <header className="app-head">
                 <div className="app-head-row">
                     <h1>{t.app.title}</h1>
-                    <div className="lang-switch" role="group" aria-label={t.app.language}>
-                        {LANGUAGES.map((code) => (
-                            <button
-                                key={code}
-                                type="button"
-                                className={code === lang ? 'lang-active' : undefined}
-                                aria-pressed={code === lang}
-                                onClick={() => setLang(code)}
-                            >
-                                {t.langName[code]}
-                            </button>
-                        ))}
-                    </div>
                 </div>
                 <p className="tagline">{t.app.tagline}</p>
             </header>
@@ -651,11 +688,19 @@ function App() {
                     <PreMatchPanel
                         matchLabel={odds.matchLabel}
                         active={preMatch}
-                        onApply={(rates) => {
+                        onApply={(rates, teams) => {
                             setPreMatch(rates);
-                            // The model prices a match that has not started, so using it turns the
-                            // live switch off; a live match is priced from its own xG instead.
-                            if (rates) setLive((current) => ({ ...current, isLive: false }));
+                            setPreMatchFor(rates ? odds.matchLabel || teams : '');
+                            // Before kick-off the rates price the match outright, so the live switch
+                            // goes off. Once it is under way they become what the live pace is pulled
+                            // towards instead, and the clock already on the form stays where it is.
+                            if (rates) {
+                                setLive((current) =>
+                                    current.isLive && current.minutePlayed !== ''
+                                        ? current
+                                        : { ...current, isLive: false },
+                                );
+                            }
                             setResult(null);
                         }}
                     />
@@ -674,7 +719,13 @@ function App() {
                         bankroll={bankroll}
                         onImport={applyQuickImport}
                     />
-                    <BankrollInput value={bankroll} onChange={setBankroll} />
+                    <BankrollInput
+                        value={bankroll}
+                        account={account}
+                        overridden={bankrollOverride !== null}
+                        onChange={setBankrollOverride}
+                        onUseAccount={() => setBankrollOverride(null)}
+                    />
                     <OddsInputForm value={odds} onChange={setOdds} />
                     <LiveStatsInputForm
                         value={live}
@@ -710,8 +761,8 @@ function App() {
                     {result ? (
                         <EdgeResultCard
                             result={result}
-                            onSave={savePosition}
-                            saving={saving}
+                            onSave={saveBet}
+                            saving={saveDraft !== null}
                             saved={savedId !== null}
                             overtakenAtMinute={
                                 watching && resultMinute !== null && resultMinute !== live.minutePlayed
@@ -737,7 +788,7 @@ function App() {
                 onUpdateEntryOdds={updateEntryOdds}
                 onUpdateStake={updateStake}
                 onUpdateOutcome={updateOutcome}
-                onDelete={deletePosition}
+                onDelete={deleteBet}
                 onReprice={reprice}
                 repriceBlocked={blocked === null ? null : t.reprice.needsLive}
                 repricing={repricing}
@@ -746,6 +797,10 @@ function App() {
             />
 
             <footer className="disclaimer">{t.app.disclaimer}</footer>
+
+            {saveDraft && (
+                <SaveBetDialog draft={saveDraft} onSave={confirmSave} onClose={() => setSaveDraft(null)} />
+            )}
         </div>
     );
 }

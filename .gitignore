@@ -18,3 +18,6 @@ node_modules/
 
 # Local secrets (API-Football key for docker compose)
 .env
+
+# Data-protection keys that sign the login cookie (development; a volume in Docker)
+keys/

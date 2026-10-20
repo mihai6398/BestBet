@@ -1,4 +1,4 @@
-import type { ImportPositionRequest, MarketKind, MarketSelection } from '../types/domain';
+import type { ImportBetRequest, MarketKind, MarketSelection } from '../types/domain';
 import { marketKindConfig } from './forms';
 import { normaliseOcrText } from './ocrText';
 
@@ -287,7 +287,7 @@ export function slipSelection(form: SlipFormState): string {
         : form.selection;
 }
 
-export function buildImportRequest(form: SlipFormState): ImportPositionRequest {
+export function buildImportRequest(form: SlipFormState): ImportBetRequest {
     const optional = (text: string) => (text.trim() === '' ? undefined : asNumber(text));
     const hasMinute = form.minute.trim() !== '';
     const hasXg = form.xgHome.trim() !== '' && form.xgAway.trim() !== '';

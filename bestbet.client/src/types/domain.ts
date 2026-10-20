@@ -25,7 +25,11 @@ export type MarketSelection =
 
 export type Verdict = 'Bet' | 'Marginal' | 'Skip';
 
-export type PositionOutcome = 'Pending' | 'Won' | 'Lost' | 'Void';
+/** Where a bet stands. Everything but 'Open' is settled. */
+export type BetStatus = 'Open' | 'Won' | 'Lost' | 'Void' | 'HalfWon' | 'HalfLost' | 'CashedOut';
+
+/** Every status, in the order a settle menu offers them. */
+export const SETTLED_STATUSES: readonly BetStatus[] = ['Won', 'Lost', 'Void', 'HalfWon', 'HalfLost', 'CashedOut'];
 
 export interface MarketOdds {
     kind: MarketKind;
@@ -91,6 +95,11 @@ export interface PaceAdjustment {
     adjustedRateTotal: number;
     /** Below 1 the pace was corrected down, above 1 up. */
     paceMultiplier: number;
+    /** Goals per match each side was pulled towards; null when shrinkage did not run. */
+    priorGoalsHome: number | null;
+    priorGoalsAway: number | null;
+    /** True when those came from this match's pre-match model rather than the league average. */
+    priorFromPreMatch: boolean;
 }
 
 export interface ModelDiagnostics {
@@ -166,7 +175,7 @@ export interface PredictionMarket {
 }
 
 /** What an already-placed bet is worth now. Computed on demand; never written to the row. */
-export interface RepricedPosition {
+export interface RepricedBet {
     id: number;
     matchLabel: string;
     selection: string;
@@ -247,6 +256,8 @@ export interface ProviderReading {
 export interface RepriceRequest {
     liveState: LiveMatchState;
     pace?: PaceSettings;
+    /** The match's pre-match rates, so an open bet is re-priced on the terms it was priced on. */
+    preMatch?: PreMatchRates;
 }
 
 export interface AnalyzeResponse {
@@ -261,7 +272,7 @@ export interface AnalyzeResponse {
     reference: ReferenceLine | null;
 }
 
-export interface SavePositionRequest {
+export interface SaveBetRequest {
     matchLabel: string;
     marketKind: MarketKind;
     marketLabel: string;
@@ -283,17 +294,38 @@ export interface SavePositionRequest {
     goalsHome: number | null;
     goalsAway: number | null;
     notes: string | null;
+    sport?: string | null;
+    competition?: string | null;
+    bookmaker?: string | null;
+    /** Kick-off, ISO 8601 UTC. */
+    eventStartUtc?: string | null;
 }
 
-export interface UpdatePositionRequest {
+export interface UpdateBetRequest {
     closingDecimalOdds?: number | null;
     closingSiblingOdds?: number[] | null;
-    outcome?: PositionOutcome | null;
+    /** Settles the bet exactly as the settle endpoint does; 'Open' reopens it. */
+    status?: BetStatus | null;
     notes?: string | null;
     /** What was actually taken. Editing it re-derives the fair line and the edge server-side. */
     entryDecimalOdds?: number;
     entrySiblingOdds?: number[];
     stakeAmount?: number;
+    matchLabel?: string;
+    sport?: string;
+    competition?: string;
+    bookmaker?: string;
+    eventStartUtc?: string | null;
+    /** Only with status 'CashedOut': what the bookmaker paid back. */
+    payout?: number | null;
+}
+
+/** Body of POST /api/bets/{id}/settle. */
+export interface SettleBetRequest {
+    status: BetStatus;
+    /** Required for 'CashedOut', ignored otherwise. */
+    payout?: number | null;
+    closingDecimalOdds?: number | null;
 }
 
 /**
@@ -301,7 +333,7 @@ export interface UpdatePositionRequest {
  * a slip has the score and the clock but no xG, and without xG there is nothing to price the entry
  * with — the row is then only a record that the bet exists, to be tracked from here on.
  */
-export interface ImportPositionRequest {
+export interface ImportBetRequest {
     matchLabel: string;
     marketKind: MarketKind;
     marketLabel: string;
@@ -315,9 +347,10 @@ export interface ImportPositionRequest {
     cumulativeXgHome?: number;
     cumulativeXgAway?: number;
     notes?: string;
+    bookmaker?: string;
 }
 
-export interface Position {
+export interface Bet {
     id: number;
     createdUtc: string;
     matchLabel: string;
@@ -342,24 +375,89 @@ export interface Position {
     goalsAway: number | null;
     closingDecimalOdds: number | null;
     closingSiblingOdds: number[];
-    outcome: PositionOutcome;
+    status: BetStatus;
     notes: string | null;
     clvPercent: number | null;
     beatTheClose: boolean | null;
     clvProbabilityPoints: number | null;
+    /** Payout minus stake; null while open. */
     profitLoss: number | null;
+    /** What came back, stake included; null while open. */
+    payout: number | null;
+    settledUtc: string | null;
+    sport: string | null;
+    competition: string | null;
+    bookmaker: string | null;
+    eventStartUtc: string | null;
 }
 
-export interface PositionsSummary {
-    totalPositions: number;
-    positionsWithClosingPrice: number;
-    positionsBeatingClose: number;
-    beatCloseRate: number | null;
-    averageClvPercent: number | null;
-    settledPositions: number;
+export interface BetStats {
+    totalBets: number;
+    openBets: number;
+    /** Money riding on open bets. */
+    openStake: number;
+    settledBets: number;
+    /** On settled bets only. */
     totalStaked: number;
     totalProfitLoss: number;
+    /** Profit over the amount staked on settled bets. */
+    yield: number | null;
+    /** Profit over deposits less withdrawals. */
+    roi: number | null;
+    betsWithClosingPrice: number;
+    betsBeatingClose: number;
+    beatCloseRate: number | null;
+    averageClvPercent: number | null;
     readout: string;
+}
+
+export type BankrollTransactionKind = 'Deposit' | 'Withdrawal';
+
+export interface BankrollTransaction {
+    id: number;
+    createdUtc: string;
+    kind: BankrollTransactionKind;
+    amount: number;
+    note: string | null;
+}
+
+/** Worked out by the server from the movements and the settled bets; never stored. */
+export interface BankrollSummary {
+    /** Deposits less withdrawals plus settled profit: what stakes are sized against. */
+    balance: number;
+    deposits: number;
+    withdrawals: number;
+    settledProfitLoss: number;
+    openStake: number;
+    /** Balance less what is riding on open bets. */
+    available: number;
+    /** False until the first deposit, which is the starting balance. */
+    hasStartingBalance: boolean;
+    transactions: BankrollTransaction[];
+}
+
+export interface AddBankrollTransactionRequest {
+    kind: BankrollTransactionKind;
+    amount: number;
+    note?: string;
+}
+
+/** Who is signed in. */
+export interface Me {
+    email: string;
+    isAdmin: boolean;
+    /** Still on a temporary password: nothing but changing it works. */
+    mustChangePassword: boolean;
+}
+
+export interface UserSummary {
+    id: string;
+    email: string;
+    isAdmin: boolean;
+    isDisabled: boolean;
+    isLockedOut: boolean;
+    mustChangePassword: boolean;
+    createdUtc: string;
 }
 
 /** Which selections each market kind offers, and whether that kind needs a goal line. */

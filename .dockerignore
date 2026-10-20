@@ -6,11 +6,13 @@
 **/node_modules
 **/.tmp-ssr
 
-# Local state that must never be baked into an image.
+# Local state and secrets that must never be baked into an image.
 **/*.db
 **/*.db-shm
 **/*.db-wal
 **/*.log
+**/.env
+**/keys
 
 # Tooling and IDE
 .vs
@@ -28,3 +30,4 @@ BESTBET_TASK.md
 docker-compose.yml
 Dockerfile
 .dockerignore
+.env.example

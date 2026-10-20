@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using BestBet.Data;
+using BestBet.Security;
 using BestBet.Server.Controllers;
 using BestBet.Services;
 using Microsoft.EntityFrameworkCore;
@@ -17,16 +18,27 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// One SQLite file next to the app. Single user, no auth — see the spec's non-goals.
+// PostgreSQL, one database for every user's data. The connection string comes from configuration —
+// ConnectionStrings__BestBet in Docker, user-secrets in development — and never from this file.
 var connectionString = builder.Configuration.GetConnectionString("BestBet")
-                       ?? "Data Source=bestbet.db";
-builder.Services.AddDbContext<BestBetDbContext>(options => options.UseSqlite(connectionString));
+                       ?? throw new InvalidOperationException(
+                           "The connection string 'BestBet' is not set. In development run " +
+                           "`dotnet user-secrets set ConnectionStrings:BestBet \"Host=localhost;Port=5432;Database=bestbet;" +
+                           "Username=...;Password=...\" --project BestBet.Server`; in Docker it comes from .env.");
+builder.Services.AddDbContext<BestBetDbContext>(options => options.UseNpgsql(connectionString));
+
+builder.Services.AddBestBetSecurity(builder.Configuration, builder.Environment);
+
+// Who is asking, for every service that reads or writes user data.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 builder.Services.AddSingleton<AnalysisService>();
-builder.Services.AddScoped<PositionService>();
+builder.Services.AddScoped<BetService>();
+builder.Services.AddScoped<BankrollService>();
 
-// Holds the last reading pushed in from a match page the user has open. In memory only: it is a
-// snapshot of a match in progress, worthless ten minutes later and not worth a table.
+// Holds the last reading pushed in from a match page, per user. In memory only: it is a snapshot of
+// a match in progress, worthless ten minutes later and not worth a table.
 builder.Services.AddSingleton<LiveFeedStore>();
 
 // One CORS policy, for one endpoint: the push from a live-score page. Any origin, because the
@@ -80,12 +92,32 @@ builder.Services.AddScoped<PreMatchService>();
 
 var app = builder.Build();
 
-// No migrations yet: the schema is one table and v1 is a local tool. EnsureCreated is the honest
-// choice here; swap to migrations the moment the schema has to survive a change with data in it.
+// Migrations run on start in development, and wherever Database:MigrateOnStartup says so — the
+// Docker setup does, so `docker compose up` brings the schema with it. Then the first admin is made
+// from ADMIN_EMAIL / ADMIN_PASSWORD if that account does not exist yet.
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<BestBetDbContext>().Database.EnsureCreated();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
+    if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+    {
+        try
+        {
+            await scope.ServiceProvider.GetRequiredService<BestBetDbContext>().Database.MigrateAsync();
+        }
+        catch (Exception ex) when (ex is Npgsql.NpgsqlException or System.Net.Sockets.SocketException)
+        {
+            logger.LogCritical(
+                ex,
+                "Could not reach PostgreSQL to apply migrations. Is it running? `docker compose up db` starts it.");
+            throw;
+        }
+    }
+
+    await SecuritySetup.SeedAdminAsync(scope.ServiceProvider, app.Configuration, logger);
 }
+
+app.UseSecurityHeaders();
 
 // Chrome asks permission before a public page may reach a private address, and asks it as a
 // preflight carrying this header. Answering it is how the push from a provider's page is allowed to
@@ -103,8 +135,8 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.UseCors();
-
+// The SPA's files are served to anyone, ahead of routing and authorization: the login page is one
+// of them, and they hold no data. Everything with data in it is under /api, behind the login.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -125,13 +157,34 @@ var servesHttps =
 
 if (servesHttps)
 {
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseHsts();
+    }
+
     app.UseHttpsRedirection();
 }
 
+app.UseRouting();
+
+// After routing, so the push endpoint's own CORS policy and the login's rate limit are known.
+app.UseCors();
+app.UseRateLimiter();
+app.UseCsrfHeaderCheck();
+
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapFallbackToFile("/index.html");
+// An unknown API path is a 404 (a 401 before signing in), not the SPA's index page.
+app.MapFallback("/api/{**path}", () => Results.NotFound());
+
+// Every other path is the SPA, which routes on the client — /login included, so it has to answer
+// before anyone is signed in.
+app.MapFallbackToFile("/index.html").AllowAnonymous();
 
 app.Run();
+
+/// <summary>Visible to the integration tests, which host the whole app in memory.</summary>
+public partial class Program;

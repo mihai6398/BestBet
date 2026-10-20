@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildAnalyzeRequest,
-    buildSavePositionRequest,
+    buildSaveBetRequest,
     canonicalSelection,
     defaultLiveForm,
     defaultOddsForm,
@@ -59,7 +59,7 @@ describe('naming the chosen side', () => {
             model: null,
         } as unknown as AnalyzeResponse;
 
-        const saved = buildSavePositionRequest(totals(), { ...live(), isLive: false }, 100, result);
+        const saved = buildSaveBetRequest(totals(), { ...live(), isLive: false }, 100, result);
 
         expect(saved.selection).toBe('Over 2.5');
     });
@@ -106,11 +106,12 @@ describe('sending the pre-match model', () => {
         expect(request.liveState).toBeNull();
     });
 
-    it('is ignored for a live match, which is priced from its own xG', () => {
+    it('goes along with a live match, as what its pace is pulled towards', () => {
         const request = buildAnalyzeRequest(totals(), live(), 100, defaultPaceForm(), null, rates);
 
-        expect(request.preMatch).toBeUndefined();
+        expect(request.preMatch).toEqual(rates);
         expect(request.liveState).not.toBeNull();
+        expect(request.manualOwnProbability).toBeUndefined();
     });
 
     it('leaves the typed probability alone when no model is in use', () => {

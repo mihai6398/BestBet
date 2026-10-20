@@ -17,8 +17,11 @@ interface Props {
     matchLabel: string;
     /** The rates the analysis is currently using, or null when it is not using the model. */
     active: PreMatchRates | null;
-    /** Hands the rates to the analysis; null stops using them. */
-    onApply: (rates: PreMatchRates | null) => void;
+    /**
+     * Hands the rates to the analysis; null stops using them. `teams` names the match they were
+     * worked out for, as the data source spells it, for when the form has no match typed in.
+     */
+    onApply: (rates: PreMatchRates | null, teams: string) => void;
 }
 
 /**
@@ -90,7 +93,7 @@ export function PreMatchPanel({ matchLabel, active, onApply }: Props) {
             setResult(next);
             // A model already in use follows the numbers on screen, so toggling a player never
             // leaves the analysis pricing something the table no longer shows.
-            if (active) onApply(next.rates);
+            if (active) onApply(next.rates, `${next.home.name} - ${next.away.name}`);
         } catch (failure) {
             setResult(null);
             setError(
@@ -234,11 +237,11 @@ export function PreMatchPanel({ matchLabel, active, onApply }: Props) {
                             <div className="cell-sub">{t.prematch.applyNote}</div>
                         </div>
                         {active ? (
-                            <button type="button" className="link-button" onClick={() => onApply(null)}>
+                            <button type="button" className="link-button" onClick={() => onApply(null, '')}>
                                 {t.prematch.remove}
                             </button>
                         ) : (
-                            <button type="button" onClick={() => onApply(result.rates)}>
+                            <button type="button" onClick={() => onApply(result.rates, `${result.home.name} - ${result.away.name}`)}>
                                 {t.prematch.apply}
                             </button>
                         )}

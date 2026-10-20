@@ -17,7 +17,7 @@ public class SlipImportTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
 
-    private static ImportPositionRequest Slip() => new(
+    private static ImportBetRequest Slip() => new(
         MatchLabel: "Atletico Madrid - Manchester United",
         MarketKind: MarketKind.TotalGoals,
         MarketLabel: "Sub 2",
@@ -29,9 +29,9 @@ public class SlipImportTests
     public async Task A_slip_with_no_match_state_is_kept_without_inventing_an_edge()
     {
         using var db = NewDb();
-        var saved = await new PositionService(db).ImportAsync(Slip());
+        var saved = await new BetService(db, TestUser.Alice).ImportAsync(Slip());
 
-        Assert.Equal(PositionOutcome.Pending, saved.Outcome);
+        Assert.Equal(BetStatus.Open, saved.Status);
         Assert.Equal(2.75, saved.EntryDecimalOdds);
         Assert.Equal(2.0, saved.StakeAmount);
         Assert.Equal("Under 2", saved.Selection);
@@ -53,7 +53,7 @@ public class SlipImportTests
             MinutePlayed = 62, GoalsHome = 1, GoalsAway = 0, CumulativeXgHome = 1.1, CumulativeXgAway = 0.5,
         };
 
-        var saved = await new PositionService(db).ImportAsync(request);
+        var saved = await new BetService(db, TestUser.Alice).ImportAsync(request);
 
         var (expected, _) = AnalysisService.PriceLive(
             MarketKind.TotalGoals,
@@ -72,12 +72,12 @@ public class SlipImportTests
     public async Task An_imported_bet_can_be_re_priced_as_the_match_moves()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
         var saved = await service.ImportAsync(Slip());
 
-        var quiet = await service.RepriceAsync(saved.Id, new RepricePositionRequest(
+        var quiet = await service.RepriceAsync(saved.Id, new RepriceBetRequest(
             new LiveMatchState(62, 1.1, 0.5, 1, 0, IsPreMatch: false)));
-        var afterGoal = await service.RepriceAsync(saved.Id, new RepricePositionRequest(
+        var afterGoal = await service.RepriceAsync(saved.Id, new RepriceBetRequest(
             new LiveMatchState(70, 1.3, 0.8, 1, 1, IsPreMatch: false)));
 
         // Under 2 with a 1-0 lead is alive; at 1-1 the next goal makes it a push, so it is worth less.
@@ -91,10 +91,10 @@ public class SlipImportTests
     public async Task A_returned_stake_counts_as_nothing_not_as_a_win_in_the_expected_value()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
         var saved = await service.ImportAsync(Slip());
 
-        var now = await service.RepriceAsync(saved.Id, new RepricePositionRequest(
+        var now = await service.RepriceAsync(saved.Id, new RepriceBetRequest(
             new LiveMatchState(62, 1.1, 0.5, 1, 0, IsPreMatch: false)));
 
         var win = now!.Model.RawWinProbability;
@@ -114,11 +114,11 @@ public class SlipImportTests
     public async Task A_bet_the_score_has_already_lost_has_no_fair_price_and_still_serialises()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
         var saved = await service.ImportAsync(Slip());
 
         // 2-1 against "Under 2": three goals are in, and nothing that happens next can undo that.
-        var now = await service.RepriceAsync(saved.Id, new RepricePositionRequest(
+        var now = await service.RepriceAsync(saved.Id, new RepriceBetRequest(
             new LiveMatchState(75, 1.5, 0.9, 2, 1, IsPreMatch: false)));
 
         Assert.Equal(0.0, now!.Model.RawWinProbability, 10);
@@ -134,10 +134,10 @@ public class SlipImportTests
     public async Task On_a_half_line_nothing_can_push_so_the_expected_value_is_unchanged()
     {
         using var db = NewDb();
-        var service = new PositionService(db);
+        var service = new BetService(db, TestUser.Alice);
         var saved = await service.ImportAsync(Slip() with { MarketLabel = "Sub 2.5", Selection = "Under 2.5" });
 
-        var now = await service.RepriceAsync(saved.Id, new RepricePositionRequest(
+        var now = await service.RepriceAsync(saved.Id, new RepriceBetRequest(
             new LiveMatchState(62, 1.1, 0.5, 1, 0, IsPreMatch: false)));
 
         Assert.Equal(0.0, now!.Model.PushProbability);
@@ -153,7 +153,7 @@ public class SlipImportTests
         using var db = NewDb();
 
         await Assert.ThrowsAsync<AnalysisInputException>(
-            () => new PositionService(db).ImportAsync(Slip() with { EntryDecimalOdds = price }));
+            () => new BetService(db, TestUser.Alice).ImportAsync(Slip() with { EntryDecimalOdds = price }));
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class SlipImportTests
         using var db = NewDb();
 
         await Assert.ThrowsAsync<AnalysisInputException>(
-            () => new PositionService(db).ImportAsync(Slip() with { Selection = "somewhere" }));
+            () => new BetService(db, TestUser.Alice).ImportAsync(Slip() with { Selection = "somewhere" }));
     }
 
     [Fact]
@@ -171,6 +171,6 @@ public class SlipImportTests
         using var db = NewDb();
 
         await Assert.ThrowsAsync<AnalysisInputException>(
-            () => new PositionService(db).ImportAsync(Slip() with { StakeAmount = -1.0 }));
+            () => new BetService(db, TestUser.Alice).ImportAsync(Slip() with { StakeAmount = -1.0 }));
     }
 }

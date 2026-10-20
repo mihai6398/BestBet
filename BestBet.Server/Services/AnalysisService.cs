@@ -97,7 +97,7 @@ public class AnalysisService
     }
 
     private static (ProbabilityEstimate, ModelDiagnostics) EstimateFromLiveModel(AnalyzeRequest request)
-        => PriceLive(request.Market.Kind, ResolveSelection(request), request.LiveState!, request.Pace);
+        => PriceLive(request.Market.Kind, ResolveSelection(request), request.LiveState!, request.Pace, request.PreMatch);
 
     /// <summary>
     /// The live model on its own: how likely this outcome is, given where the match is now.
@@ -109,16 +109,25 @@ public class AnalysisService
     /// implementation that drifted from this one would quietly disagree with the row it was
     /// explaining.
     /// </remarks>
+    /// <param name="preMatch">This match's pre-match expected goals, when the user worked them out. They
+    /// become the target the pace is shrunk towards in place of the league average, so what the app
+    /// knows about these two teams is not thrown away the moment the match kicks off.</param>
     public static (ProbabilityEstimate Estimate, ModelDiagnostics Diagnostics) PriceLive(
         MarketKind kind,
         MarketSelectionSpec selection,
         LiveMatchState state,
-        PaceSettings? pace)
+        PaceSettings? pace,
+        PreMatchRates? preMatch = null)
     {
         if (state.IsPreMatch)
         {
             throw new AnalysisInputException(
                 "The live model needs a match in progress: minute played and the xG accrued so far.");
+        }
+
+        if (preMatch is not null)
+        {
+            ValidatePreMatch(preMatch);
         }
 
         // Pace correction is the default, not an opt-in. The raw extrapolation is only right for a
@@ -130,7 +139,7 @@ public class AnalysisService
         GoalDistribution distribution;
         try
         {
-            adjustment = PaceModel.Adjust(state, paceSettings);
+            adjustment = PaceModel.Adjust(state, paceSettings, preMatch);
             distribution = PoissonGoalModel.ExtrapolateFrom(state, adjustment);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
@@ -158,7 +167,9 @@ public class AnalysisService
 
         var estimate = new ProbabilityEstimate(
             resolved.Probability,
-            adjustment.IsAdjusted ? "poisson-live-xg-paced" : "poisson-live-xg",
+            adjustment.PriorFromPreMatch ? LivePreMatchPriorMethod
+            : adjustment.IsAdjusted ? "poisson-live-xg-paced"
+            : "poisson-live-xg",
             string.Join(" ", notes));
 
         var diagnostics = new ModelDiagnostics(
@@ -182,12 +193,7 @@ public class AnalysisService
     private static (ProbabilityEstimate, ModelDiagnostics?) EstimateFromPreMatchModel(AnalyzeRequest request)
     {
         var rates = request.PreMatch!;
-        if (!(rates.HomeExpectedGoals > 0.0) || !(rates.AwayExpectedGoals > 0.0)
-            || double.IsInfinity(rates.HomeExpectedGoals) || double.IsInfinity(rates.AwayExpectedGoals))
-        {
-            throw new AnalysisInputException(
-                "The pre-match expected goals must be positive numbers for both teams.");
-        }
+        ValidatePreMatch(rates);
 
         var selection = ResolveSelection(request);
 
@@ -216,6 +222,23 @@ public class AnalysisService
 
     /// <summary>The method code stored with the estimate, and translated on screen.</summary>
     public const string PreMatchMethod = "poisson-prematch-squad";
+
+    /// <summary>
+    /// The live model with its pace shrunk towards the pre-match numbers rather than the league
+    /// average. A separate code so the positions log can tell the two apart when they are judged on
+    /// closing-line value later.
+    /// </summary>
+    public const string LivePreMatchPriorMethod = "poisson-live-xg-paced-prematch";
+
+    private static void ValidatePreMatch(PreMatchRates rates)
+    {
+        if (!(rates.HomeExpectedGoals > 0.0) || !(rates.AwayExpectedGoals > 0.0)
+            || double.IsInfinity(rates.HomeExpectedGoals) || double.IsInfinity(rates.AwayExpectedGoals))
+        {
+            throw new AnalysisInputException(
+                "The pre-match expected goals must be positive numbers for both teams.");
+        }
+    }
 
     private static (ProbabilityEstimate, ModelDiagnostics?) EstimateFromManualInput(AnalyzeRequest request)
     {

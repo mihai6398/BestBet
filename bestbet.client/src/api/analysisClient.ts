@@ -1,19 +1,21 @@
 import type {
     AnalyzeRequest,
     AnalyzeResponse,
-    ImportPositionRequest,
+    ImportBetRequest,
     LiveFeedState,
-    Position,
-    PositionsSummary,
+    Bet,
+    BetStats,
     PreMatchRequest,
     PreMatchResponse,
     PreMatchStatus,
     PredictionMarket,
     ProviderReading,
     RepriceRequest,
-    RepricedPosition,
-    SavePositionRequest,
-    UpdatePositionRequest,
+    RepricedBet,
+    SaveBetRequest,
+    SettleBetRequest,
+    BetStatus,
+    UpdateBetRequest,
 } from '../types/domain';
 
 /**
@@ -32,15 +34,40 @@ export class ApiError extends Error {
     }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * What the request wrapper announces when the server says the session is gone (401) or that this
+ * user may not do something yet (403 — most often a temporary password still to be replaced). The
+ * auth provider listens and sends the user to the right page; nothing else has to handle either.
+ */
+export const AUTH_EVENTS = {
+    unauthorized: 'bestbet:unauthorized',
+    forbidden: 'bestbet:forbidden',
+} as const;
+
+/**
+ * Every call to the API goes through here.
+ *
+ * The session is an HttpOnly cookie the browser attaches on its own — there is no token in this
+ * code, or anywhere script could read one. Every request also carries the app's own header, which
+ * the server requires on anything that changes state: a page on another site cannot add a custom
+ * header without a CORS preflight the server would refuse.
+ */
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let response: Response;
     try {
         response = await fetch(path, {
             ...init,
-            headers: { 'Content-Type': 'application/json', ...init?.headers },
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-BestBet-Csrf': '1', ...init?.headers },
         });
     } catch {
         throw new ApiError('Could not reach the API. Is the ASP.NET backend running?', 0);
+    }
+
+    if (response.status === 401) {
+        window.dispatchEvent(new Event(AUTH_EVENTS.unauthorized));
+    } else if (response.status === 403) {
+        window.dispatchEvent(new Event(AUTH_EVENTS.forbidden));
     }
 
     if (!response.ok) {
@@ -64,26 +91,34 @@ export const analysisClient = {
     analyze: (payload: AnalyzeRequest) =>
         request<AnalyzeResponse>('/api/analyze', { method: 'POST', body: JSON.stringify(payload) }),
 
-    listPositions: () => request<Position[]>('/api/positions'),
+    listBets: () => request<Bet[]>('/api/bets'),
 
-    positionsSummary: () => request<PositionsSummary>('/api/positions/summary'),
+    betStats: () => request<BetStats>('/api/bets/stats'),
 
-    savePosition: (payload: SavePositionRequest) =>
-        request<Position>('/api/positions', { method: 'POST', body: JSON.stringify(payload) }),
+    saveBet: (payload: SaveBetRequest) =>
+        request<Bet>('/api/bets', { method: 'POST', body: JSON.stringify(payload) }),
 
     /** A bet already placed at a bookmaker, brought in from its slip. */
-    importPosition: (payload: ImportPositionRequest) =>
-        request<Position>('/api/positions/import', { method: 'POST', body: JSON.stringify(payload) }),
+    importBet: (payload: ImportBetRequest) =>
+        request<Bet>('/api/bets/import', { method: 'POST', body: JSON.stringify(payload) }),
 
-    updatePosition: (id: number, payload: UpdatePositionRequest) =>
-        request<Position>(`/api/positions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+    updateBet: (id: number, payload: UpdateBetRequest) =>
+        request<Bet>(`/api/bets/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
-    deletePosition: (id: number) =>
-        request<void>(`/api/positions/${id}`, { method: 'DELETE' }),
+    deleteBet: (id: number) =>
+        request<void>(`/api/bets/${id}`, { method: 'DELETE' }),
+
+    /** One status's worth of bets — 'open', 'closed', or a single status — newest first. */
+    listBetsByStatus: (status: 'open' | 'closed' | BetStatus) =>
+        request<Bet[]>(`/api/bets?status=${encodeURIComponent(status)}`),
+
+    /** Sets the result; the server works out the payout and the profit. */
+    settleBet: (id: number, payload: SettleBetRequest) =>
+        request<Bet>(`/api/bets/${id}/settle`, { method: 'POST', body: JSON.stringify(payload) }),
 
     /** What an open position is worth now. Computes; changes nothing. */
     reprice: (id: number, payload: RepriceRequest) =>
-        request<RepricedPosition>(`/api/positions/${id}/reprice`, {
+        request<RepricedBet>(`/api/bets/${id}/reprice`, {
             method: 'POST',
             body: JSON.stringify(payload),
         }),

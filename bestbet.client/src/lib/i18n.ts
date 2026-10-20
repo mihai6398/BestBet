@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import { DISCLAIMER } from '../types/domain';
-import type { MarketKind, MarketSelection, PositionOutcome, Verdict } from '../types/domain';
+import type { MarketKind, MarketSelection, BetStatus, Verdict } from '../types/domain';
 import type { ParseIssue } from './oddsPaste';
 
 /**
@@ -55,11 +55,202 @@ const ro = {
             'un îndemn la pariere.',
     },
 
+    common: {
+        loading: 'Se încarcă…',
+        cancel: 'Renunță',
+        close: 'Închide',
+        failed: 'Ceva nu a mers.',
+    },
+
+    nav: {
+        calculator: 'Calculator',
+        bets: 'Pariurile mele',
+        admin: 'Conturi',
+        account: 'Contul meu',
+        logout: 'Ieși',
+        main: 'Navigare',
+    },
+
+    auth: {
+        title: 'Intră în BestBet',
+        closed: 'Aplicația e privată: conturile le creează administratorul.',
+        email: 'Email',
+        password: 'Parolă',
+        rememberMe: 'Ține-mă minte pe acest dispozitiv',
+        submit: 'Intră',
+        submitting: 'Se verifică…',
+        // The same words whatever went wrong, as on the server: the page must not reveal whether an
+        // email has an account.
+        failed: 'Email sau parolă greșită, ori contul e blocat temporar după prea multe încercări.',
+        tooMany: 'Prea multe încercări de pe această adresă. Așteaptă un minut și încearcă din nou.',
+        checking: 'Se verifică sesiunea…',
+        unreachable: 'Serverul nu răspunde. Pornește backend-ul și baza de date, apoi reîncearcă.',
+        retry: 'Reîncearcă',
+    },
+
+    account: {
+        title: 'Contul meu',
+        signedInAs: (email: string) => `Ești conectat ca ${email}.`,
+        forced:
+            'Contul tău are o parolă temporară, primită de la administrator. Alege una pe care doar tu ' +
+            'o știi — până atunci restul aplicației nu răspunde.',
+        current: 'Parola actuală',
+        next: 'Parola nouă',
+        confirm: 'Repetă parola nouă',
+        rule: 'Cel puțin 12 caractere. O propoziție scurtă e mai sigură și mai ușor de ținut minte decât un cuvânt cu simboluri.',
+        submit: 'Schimbă parola',
+        submitting: 'Se salvează…',
+        saved: 'Parola a fost schimbată. Celelalte sesiuni ale tale se închid în cel mult un minut.',
+        mismatch: 'Cele două parole noi nu sunt la fel.',
+    },
+
+    bets: {
+        title: 'Pariurile mele',
+        open: (count: number) => `Deschise (${count})`,
+        closed: (count: number) => `Închise (${count})`,
+        add: 'Adaugă pariu',
+        emptyOpen: 'Niciun pariu deschis.',
+        emptyClosed: 'Niciun pariu închis încă.',
+        loadError: 'Pariurile nu au putut fi încărcate.',
+        columns: {
+            placed: 'Plasat',
+            event: 'Eveniment',
+            market: 'Piață',
+            bookmaker: 'Casă',
+            odds: 'Cotă',
+            stake: 'Miză',
+            probability: 'Prob. estimată',
+            edge: 'Avantaj',
+            status: 'Status',
+            payout: 'Încasat',
+            profit: 'Profit',
+            actions: 'Acțiuni',
+        },
+        settle: 'Închide',
+        edit: 'Editează',
+        delete: 'Șterge',
+        reopen: 'Redeschide',
+        settleTitle: (label: string) => `Închide pariul: ${label}`,
+        result: 'Rezultat',
+        cashOut: 'Suma încasată la cash-out',
+        closingOdds: 'Cota de închidere (opțional)',
+        preview: (payout: string, profit: string) => `Încasezi ${payout}, adică ${profit}.`,
+        previewNeedsAmount: 'Scrie suma încasată ca să vezi rezultatul.',
+        confirmSettle: 'Închide pariul',
+        confirmDelete: (label: string) =>
+            `Ștergi pariul „${label}”? Dispare și din statistici și din balanță, și nu se mai poate recupera.`,
+        confirmDeleteButton: 'Da, șterge',
+        actionFailed: 'Operația nu a reușit.',
+        form: {
+            titleAdd: 'Adaugă un pariu',
+            titleEdit: 'Editează pariul',
+            titleSave: 'Salvează ca pariu',
+            fromAnalysis: (selection: string, odds: string, probability: string, edge: string) =>
+                `Din analiză: ${selection} la ${odds}, probabilitate estimată ${probability}, avantaj ${edge}.`,
+            match: 'Eveniment',
+            matchPlaceholder: 'Echipa A - Echipa B',
+            sport: 'Sport',
+            competition: 'Competiție',
+            kickoff: 'Început',
+            marketKind: 'Tip de piață',
+            marketLabel: 'Piața, cum o scrie casa',
+            selection: 'Selecția',
+            selectionPlaceholder: 'Over 2.5',
+            bookmaker: 'Casa de pariuri',
+            odds: 'Cota luată',
+            otherOdds: 'Celelalte cote din piață',
+            otherOddsHint: 'Opțional. Cu ele se scoate marja casei; fără ele avantajul include marja.',
+            stake: 'Miza',
+            probability: 'Probabilitatea ta (%)',
+            probabilityHint: 'Opțional. Fără ea avantajul e zero, nu inventat.',
+            closingOdds: 'Cota de închidere',
+            notes: 'Note',
+            save: 'Salvează',
+            saving: 'Se salvează…',
+        },
+        errors: {
+            match: 'Scrie evenimentul.',
+            odds: 'Cota trebuie să fie mai mare decât 1.',
+            otherOdds: 'Fiecare cotă din piață trebuie să fie mai mare decât 1.',
+            stake: 'Miza trebuie să fie un număr, cel puțin 0.',
+            probability: 'Probabilitatea e între 0 și 100.',
+            closingOdds: 'Cota de închidere trebuie să fie mai mare decât 1.',
+        } as Record<'match' | 'odds' | 'otherOdds' | 'stake' | 'probability' | 'closingOdds', string>,
+        stats: {
+            title: 'Rezumat',
+            bets: 'Pariuri',
+            open: 'Deschise',
+            openStake: 'În joc',
+            staked: 'Mizat (închise)',
+            profit: 'Profit',
+            yield: 'Yield',
+            yieldHint: 'Profit împărțit la suma mizată pe pariurile închise.',
+            roi: 'ROI',
+            roiHint: 'Profit împărțit la banii depuși, minus retragerile.',
+            beatClose: 'Bate cota de închidere',
+            none: '—',
+        },
+    },
+
     bankroll: {
         label: 'Capital (bankroll)',
         note:
-            'Rămâne doar în acest browser și ajunge la API exclusiv ca să transforme un procent de ' +
-            'miză într-o sumă. Nu se stochează pe server.',
+            'Pornește de la balanța din contul tău. O poți schimba aici doar pentru calculul ăsta; ' +
+            'balanța reală se ține din „Pariurile mele”.',
+        account: (balance: string) => `Balanța din cont: ${balance}`,
+        overridden: 'Folosești altă sumă decât balanța, doar pentru acest calcul.',
+        useAccount: 'Folosește balanța',
+        noStart: 'Nu ai setat încă balanța inițială. O setezi în „Pariurile mele”, cu o depunere.',
+        title: 'Balanța',
+        balance: 'Balanța',
+        balanceHint: 'Depuneri minus retrageri plus profitul pariurilor închise. Mizele se calculează din ea.',
+        available: 'Disponibil',
+        availableHint: 'Balanța minus ce e în joc pe pariuri deschise.',
+        deposits: 'Depuneri',
+        withdrawals: 'Retrageri',
+        settled: 'Profit din pariuri',
+        kind: 'Tip',
+        kinds: { Deposit: 'Depunere', Withdrawal: 'Retragere' } as Record<'Deposit' | 'Withdrawal', string>,
+        amount: 'Suma',
+        movementNote: 'Notă (opțional)',
+        startingNote: 'Sold inițial',
+        add: 'Adaugă',
+        adding: 'Se adaugă…',
+        history: 'Istoric',
+        empty: 'Nicio mișcare încă. Prima depunere e balanța ta inițială.',
+        confirmDelete: (what: string) => `Ștergi mișcarea „${what}”? Balanța se recalculează fără ea.`,
+        amountError: 'Suma trebuie să fie un număr mai mare decât 0.',
+    },
+
+    admin: {
+        title: 'Conturi',
+        intro:
+            'Nu există înregistrare publică: un cont există doar dacă îl creezi tu aici. Parola dată e ' +
+            'temporară — omul trebuie să o schimbe la prima intrare, deci tu nu știi nicio parolă folosită.',
+        create: 'Cont nou',
+        email: 'Email',
+        tempPassword: 'Parolă temporară',
+        generate: 'Generează',
+        createSubmit: 'Creează contul',
+        created: (email: string, password: string) =>
+            `Contul ${email} a fost creat. Parola temporară: ${password} — trimite-o pe un canal sigur; nu va mai fi afișată.`,
+        columns: { email: 'Email', role: 'Rol', state: 'Stare', created: 'Creat', actions: 'Acțiuni' },
+        roleAdmin: 'Administrator',
+        roleUser: 'Utilizator',
+        stateActive: 'Activ',
+        stateDisabled: 'Dezactivat',
+        stateLocked: 'Blocat temporar',
+        stateMustChange: 'Parolă temporară',
+        disable: 'Dezactivează',
+        enable: 'Activează',
+        reset: 'Resetează parola',
+        confirmDisable: (email: string) =>
+            `Dezactivezi contul ${email}? Nu mai poate intra, iar sesiunile deschise se închid în cel mult un minut.`,
+        confirmReset: (email: string) =>
+            `Resetezi parola pentru ${email}? Primește o parolă temporară nouă și sesiunile lui se închid.`,
+        resetDone: (email: string, password: string) =>
+            `Parola temporară nouă pentru ${email}: ${password} — nu va mai fi afișată.`,
+        you: 'tu',
     },
 
     market: {
@@ -491,9 +682,10 @@ const ro = {
         dynamicsHint: ' — cum este dus ritmul mai departe',
         correct: 'Corectează ritmul și starea scorului',
         correctedNote:
-            'Un ritm citit din câteva minute este o estimare, nu un fapt, așa că este tras spre un ' +
-            'meci mediu de ligă și ajustat pentru echipa care apără un avantaj. Oprește opțiunea ca ' +
-            'să vezi extrapolarea brută.',
+            'Un ritm citit din câteva minute este o estimare, nu un fapt, așa că este tras spre ce ' +
+            'produc de obicei cele două echipe — cifrele din panoul pre-meci, dacă le folosești, altfel ' +
+            'un meci mediu de ligă — și ajustat pentru echipa care apără un avantaj. Oprește opțiunea ' +
+            'ca să vezi extrapolarea brută.',
         rawNote:
             'Extrapolare brută: ritmul de pe ceas este dus liniar până la final. O primă repriză ' +
             'intensă proiectează atunci un scor care aproape niciodată nu se întâmplă.',
@@ -521,6 +713,11 @@ const ro = {
         paceDown: 'Ritm redus la',
         paceUp: 'Ritm crescut la',
         paceHint: (raw: string, adjusted: string) => `${raw} → ${adjusted} xG la 90 de minute, ambele echipe`,
+        pacePriorTeams: (home: string, away: string) =>
+            `Tras spre cifrele pre-meci ale echipelor: ${home} gazde, ${away} oaspeți, pe meci`,
+        pacePriorLeague: (value: string) =>
+            `Tras spre o medie de ligă de ${value} pe echipă — panoul pre-meci dă o bază mai bună, ` +
+            'din echipele care chiar joacă',
         overtaken: (minute: string) =>
             `Calculat la minutul ${minute}, iar meciul a mers mai departe. Apasă Analizează din nou ` +
             'ca rezultatul să fie pe minutul curent.',
@@ -551,12 +748,13 @@ const ro = {
         push: (push: string, raw: string) =>
             `Egalitate (miza returnată): ${push} — probabilitatea brută de câștig înainte de ` +
             `ajustarea pentru egalitate este ${raw}`,
-        save: 'Salvează în jurnal',
-        saved: 'Salvat în jurnal',
+        save: 'Salvează ca pariu…',
+        saved: 'Salvat în pariurile tale',
         saving: 'Se salvează…',
         saveHint:
-            'Salvarea reține cota de intrare, ca să poți completa mai târziu cota de închidere și ' +
-            'să afli dacă procesul chiar bate piața.',
+            'Deschide formularul cu cota, probabilitatea și avantajul deja completate; adaugi miza ' +
+            'pusă, casa și competiția. Cota de intrare rămâne, ca să afli mai târziu dacă procesul ' +
+            'chiar bate piața.',
     },
 
     /** The short codes the server returns for how a stake was sized. Anything else is shown raw. */
@@ -571,6 +769,7 @@ const ro = {
     method: {
         'poisson-live-xg': 'Poisson pe xG live',
         'poisson-live-xg-paced': 'Poisson pe xG live, cu ritmul corectat',
+        'poisson-live-xg-paced-prematch': 'Poisson pe xG live, cu ritmul corectat spre cifrele pre-meci',
         'poisson-prematch-squad': 'Poisson pre-meci, din echipe și jucători',
         'manual-input': 'introdusă de tine',
         'slip-import': 'importat din bilet, fără estimare',
@@ -585,11 +784,14 @@ const ro = {
     } as Record<Verdict, string>,
 
     outcome: {
-        Pending: 'În așteptare',
+        Open: 'Deschis',
         Won: 'Câștigat',
         Lost: 'Pierdut',
         Void: 'Anulat',
-    } as Record<PositionOutcome, string>,
+        HalfWon: 'Câștigat pe jumătate',
+        HalfLost: 'Pierdut pe jumătate',
+        CashedOut: 'Cash-out',
+    } as Record<BetStatus, string>,
 
     log: {
         title: 'Jurnal de poziții',
@@ -832,11 +1034,201 @@ const en: Dictionary = {
         disclaimer: DISCLAIMER,
     },
 
+    common: {
+        loading: 'Loading…',
+        cancel: 'Cancel',
+        close: 'Close',
+        failed: 'Something went wrong.',
+    },
+
+    nav: {
+        calculator: 'Calculator',
+        bets: 'My bets',
+        admin: 'Accounts',
+        account: 'My account',
+        logout: 'Sign out',
+        main: 'Navigation',
+    },
+
+    auth: {
+        title: 'Sign in to BestBet',
+        closed: 'This app is private: the admin creates the accounts.',
+        email: 'Email',
+        password: 'Password',
+        rememberMe: 'Keep me signed in on this device',
+        submit: 'Sign in',
+        submitting: 'Checking…',
+        failed: 'Wrong email or password, or the account is locked for a while after too many attempts.',
+        tooMany: 'Too many attempts from this address. Wait a minute and try again.',
+        checking: 'Checking your session…',
+        unreachable: 'The server is not answering. Start the backend and the database, then retry.',
+        retry: 'Retry',
+    },
+
+    account: {
+        title: 'My account',
+        signedInAs: (email: string) => `Signed in as ${email}.`,
+        forced:
+            'Your account has a temporary password from the admin. Choose one only you know — until ' +
+            'then the rest of the app will not answer.',
+        current: 'Current password',
+        next: 'New password',
+        confirm: 'New password again',
+        rule: 'At least 12 characters. A short sentence is safer and easier to remember than a word with symbols.',
+        submit: 'Change password',
+        submitting: 'Saving…',
+        saved: 'Password changed. Your other sessions end within a minute.',
+        mismatch: 'The two new passwords do not match.',
+    },
+
+    bets: {
+        title: 'My bets',
+        open: (count: number) => `Open (${count})`,
+        closed: (count: number) => `Settled (${count})`,
+        add: 'Add a bet',
+        emptyOpen: 'No open bets.',
+        emptyClosed: 'No settled bets yet.',
+        loadError: 'The bets could not be loaded.',
+        columns: {
+            placed: 'Placed',
+            event: 'Event',
+            market: 'Market',
+            bookmaker: 'Bookmaker',
+            odds: 'Odds',
+            stake: 'Stake',
+            probability: 'Est. prob.',
+            edge: 'Edge',
+            status: 'Status',
+            payout: 'Payout',
+            profit: 'Profit',
+            actions: 'Actions',
+        },
+        settle: 'Settle',
+        edit: 'Edit',
+        delete: 'Delete',
+        reopen: 'Reopen',
+        settleTitle: (label: string) => `Settle: ${label}`,
+        result: 'Result',
+        cashOut: 'Amount received on cash-out',
+        closingOdds: 'Closing odds (optional)',
+        preview: (payout: string, profit: string) => `Pays ${payout}, that is ${profit}.`,
+        previewNeedsAmount: 'Enter the amount received to see the result.',
+        confirmSettle: 'Settle the bet',
+        confirmDelete: (label: string) =>
+            `Delete the bet "${label}"? It leaves the statistics and the balance too, and cannot be recovered.`,
+        confirmDeleteButton: 'Yes, delete',
+        actionFailed: 'That did not work.',
+        form: {
+            titleAdd: 'Add a bet',
+            titleEdit: 'Edit the bet',
+            titleSave: 'Save as a bet',
+            fromAnalysis: (selection: string, odds: string, probability: string, edge: string) =>
+                `From the analysis: ${selection} at ${odds}, estimated probability ${probability}, edge ${edge}.`,
+            match: 'Event',
+            matchPlaceholder: 'Team A - Team B',
+            sport: 'Sport',
+            competition: 'Competition',
+            kickoff: 'Kick-off',
+            marketKind: 'Market type',
+            marketLabel: 'Market, as the bookmaker words it',
+            selection: 'Selection',
+            selectionPlaceholder: 'Over 2.5',
+            bookmaker: 'Bookmaker',
+            odds: 'Odds taken',
+            otherOdds: 'Other prices in the market',
+            otherOddsHint: 'Optional. They remove the margin; without them the edge still contains it.',
+            stake: 'Stake',
+            probability: 'Your probability (%)',
+            probabilityHint: 'Optional. Without it the edge is zero rather than invented.',
+            closingOdds: 'Closing odds',
+            notes: 'Notes',
+            save: 'Save',
+            saving: 'Saving…',
+        },
+        errors: {
+            match: 'Enter the event.',
+            odds: 'The odds must be greater than 1.',
+            otherOdds: 'Every price in the market must be greater than 1.',
+            stake: 'The stake must be a number, 0 or more.',
+            probability: 'The probability is between 0 and 100.',
+            closingOdds: 'The closing odds must be greater than 1.',
+        } as Record<'match' | 'odds' | 'otherOdds' | 'stake' | 'probability' | 'closingOdds', string>,
+        stats: {
+            title: 'Summary',
+            bets: 'Bets',
+            open: 'Open',
+            openStake: 'At stake',
+            staked: 'Staked (settled)',
+            profit: 'Profit',
+            yield: 'Yield',
+            yieldHint: 'Profit over the amount staked on settled bets.',
+            roi: 'ROI',
+            roiHint: 'Profit over the money deposited, less withdrawals.',
+            beatClose: 'Beating the close',
+            none: '—',
+        },
+    },
+
     bankroll: {
         label: 'Bankroll',
         note:
-            'Kept in this browser only, and sent to the API purely to turn a stake percentage into ' +
-            'an amount. It is never stored server-side.',
+            'Starts from your account balance. You can change it here for this calculation only; the ' +
+            'real balance is kept under "My bets".',
+        account: (balance: string) => `Account balance: ${balance}`,
+        overridden: 'Using an amount other than your balance, for this calculation only.',
+        useAccount: 'Use my balance',
+        noStart: 'No starting balance yet. Set it under "My bets" with a deposit.',
+        title: 'Balance',
+        balance: 'Balance',
+        balanceHint: 'Deposits less withdrawals plus the profit of settled bets. Stakes are sized from it.',
+        available: 'Available',
+        availableHint: 'The balance less what is riding on open bets.',
+        deposits: 'Deposits',
+        withdrawals: 'Withdrawals',
+        settled: 'Profit from bets',
+        kind: 'Type',
+        kinds: { Deposit: 'Deposit', Withdrawal: 'Withdrawal' } as Record<'Deposit' | 'Withdrawal', string>,
+        amount: 'Amount',
+        movementNote: 'Note (optional)',
+        startingNote: 'Starting balance',
+        add: 'Add',
+        adding: 'Adding…',
+        history: 'History',
+        empty: 'No movements yet. The first deposit is your starting balance.',
+        confirmDelete: (what: string) => `Delete the movement "${what}"? The balance is worked out again without it.`,
+        amountError: 'The amount must be a number greater than 0.',
+    },
+
+    admin: {
+        title: 'Accounts',
+        intro:
+            'There is no public sign-up: an account exists only if you create it here. The password you ' +
+            'give is temporary — they have to change it at their first sign-in, so you never know a ' +
+            'password that is in use.',
+        create: 'New account',
+        email: 'Email',
+        tempPassword: 'Temporary password',
+        generate: 'Generate',
+        createSubmit: 'Create the account',
+        created: (email: string, password: string) =>
+            `Created ${email}. Temporary password: ${password} — send it over a safe channel; it will not be shown again.`,
+        columns: { email: 'Email', role: 'Role', state: 'State', created: 'Created', actions: 'Actions' },
+        roleAdmin: 'Admin',
+        roleUser: 'User',
+        stateActive: 'Active',
+        stateDisabled: 'Disabled',
+        stateLocked: 'Locked for a while',
+        stateMustChange: 'Temporary password',
+        disable: 'Disable',
+        enable: 'Enable',
+        reset: 'Reset password',
+        confirmDisable: (email: string) =>
+            `Disable ${email}? They can no longer sign in, and their open sessions end within a minute.`,
+        confirmReset: (email: string) =>
+            `Reset the password for ${email}? They get a new temporary password and their sessions end.`,
+        resetDone: (email: string, password: string) =>
+            `New temporary password for ${email}: ${password} — it will not be shown again.`,
+        you: 'you',
     },
 
     market: {
@@ -1263,8 +1655,9 @@ const en: Dictionary = {
         correct: 'Correct for pace and score state',
         correctedNote:
             'A rate read off a handful of minutes is an estimate, not a fact, so it is pulled ' +
-            'towards a league-average match and adjusted for the side protecting a lead. Switch ' +
-            'this off to see the raw extrapolation instead.',
+            'towards what these two teams usually produce — the pre-match panel’s numbers if you ' +
+            'use them, a league-average match otherwise — and adjusted for the side protecting a ' +
+            'lead. Switch this off to see the raw extrapolation instead.',
         rawNote:
             'Raw extrapolation: whatever pace the clock shows is run flat to full time. A hot first ' +
             'half then projects a scoreline that almost never happens.',
@@ -1292,6 +1685,11 @@ const en: Dictionary = {
         paceDown: 'Pace down to',
         paceUp: 'Pace up to',
         paceHint: (raw: string, adjusted: string) => `${raw} → ${adjusted} xG per 90, both sides`,
+        pacePriorTeams: (home: string, away: string) =>
+            `Pulled towards the teams' pre-match numbers: ${home} home, ${away} away, per match`,
+        pacePriorLeague: (value: string) =>
+            `Pulled towards a league average of ${value} per team — the pre-match panel gives a better ` +
+            'base, from the teams actually playing',
         overtaken: (minute: string) =>
             `Computed at minute ${minute}, and the match has moved on. Press Analyse again to price ` +
             'it at the current minute.',
@@ -1321,12 +1719,13 @@ const en: Dictionary = {
             `Flat projection over 90: ${home} home / ${away} away xG`,
         push: (push: string, raw: string) =>
             `Push (stake returned): ${push} — raw win probability before the push adjustment is ${raw}`,
-        save: 'Save to positions log',
-        saved: 'Saved to log',
+        save: 'Save as a bet…',
+        saved: 'Saved to your bets',
         saving: 'Saving…',
         saveHint:
-            'Saving records the entry price so you can fill in the closing price later and find out ' +
-            'whether this process actually beats the market.',
+            'Opens the form with the odds, probability and edge already filled in; you add the stake ' +
+            'placed, the bookmaker and the competition. The entry price is kept so you can find out ' +
+            'later whether this process actually beats the market.',
     },
 
     capReason: {
@@ -1340,6 +1739,7 @@ const en: Dictionary = {
     method: {
         'poisson-live-xg': 'Poisson on live xG',
         'poisson-live-xg-paced': 'Poisson on live xG, pace corrected',
+        'poisson-live-xg-paced-prematch': 'Poisson on live xG, pace corrected towards the pre-match numbers',
         'poisson-prematch-squad': 'Poisson pre-match, from teams and players',
         'manual-input': 'entered by hand',
         'slip-import': 'imported from a slip, no estimate',
@@ -1354,11 +1754,14 @@ const en: Dictionary = {
     } as Record<Verdict, string>,
 
     outcome: {
-        Pending: 'Pending',
+        Open: 'Open',
         Won: 'Won',
         Lost: 'Lost',
         Void: 'Void',
-    } as Record<PositionOutcome, string>,
+        HalfWon: 'Half won',
+        HalfLost: 'Half lost',
+        CashedOut: 'Cashed out',
+    } as Record<BetStatus, string>,
 
     log: {
         title: 'Positions log',

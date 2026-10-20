@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BestBet.Contracts;
 using BestBet.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,7 +21,7 @@ namespace BestBet.Server.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/live-feed")]
-public class LiveFeedController(LiveFeedStore feed, FotMobClient fotmob) : ControllerBase
+public class LiveFeedController(LiveFeedStore feed, FotMobClient fotmob, ICurrentUser user) : ControllerBase
 {
     /// <summary>
     /// Reads a match from a provider that answers us, given a link or an id the user pasted.
@@ -83,7 +84,7 @@ public class LiveFeedController(LiveFeedStore feed, FotMobClient fotmob) : Contr
     }
 
     /// <summary>
-    /// The last reading, plus the token the pushing page needs.
+    /// The signed-in user's last reading, plus the token their pushing page needs.
     /// </summary>
     /// <remarks>
     /// Deliberately NOT cross-origin: this is the only place the token exists, and the whole scheme
@@ -93,10 +94,10 @@ public class LiveFeedController(LiveFeedStore feed, FotMobClient fotmob) : Contr
     [ProducesResponseType<LiveFeedState>(StatusCodes.Status200OK)]
     public ActionResult<LiveFeedState> Get()
     {
-        var latest = feed.Latest;
+        var latest = feed.Latest(user.Id);
 
         return Ok(new LiveFeedState(
-            feed.Token,
+            feed.TokenFor(user.Id),
             latest?.Text,
             latest?.ReceivedUtc,
             latest is null ? null : (DateTime.UtcNow - latest.ReceivedUtc).TotalSeconds,
@@ -111,8 +112,13 @@ public class LiveFeedController(LiveFeedStore feed, FotMobClient fotmob) : Contr
     /// see <see cref="LiveFeedPush"/> for why. A wrong or missing token is a 401 and nothing is
     /// stored — that is what stops any other page the user happens to visit from pushing numbers
     /// into a tool that sizes stakes.
+    ///
+    /// The one anonymous endpoint behind the login, and it has to be: it is called from the provider's
+    /// page, where the SameSite=Strict login cookie is never sent. The token stands in for the login —
+    /// it belongs to one user, and the reading goes to that user and nobody else.
     /// </remarks>
     [HttpPost]
+    [AllowAnonymous]
     [EnableCors(LiveFeedCors.PolicyName)]
     [Consumes("text/plain", "application/json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -132,7 +138,7 @@ public class LiveFeedController(LiveFeedStore feed, FotMobClient fotmob) : Contr
             return BadRequest();
         }
 
-        if (push is null || !string.Equals(push.Token, feed.Token, StringComparison.Ordinal))
+        if (push is null || string.IsNullOrEmpty(push.Token))
         {
             return Unauthorized();
         }
@@ -142,15 +148,14 @@ public class LiveFeedController(LiveFeedStore feed, FotMobClient fotmob) : Contr
             return BadRequest();
         }
 
-        feed.Publish(push.Text, push.Source);
-        return NoContent();
+        return feed.Publish(push.Token, push.Text, push.Source) ? NoContent() : Unauthorized();
     }
 
     /// <summary>Stops watching. The next reading starts it again.</summary>
     [HttpDelete]
     public IActionResult Clear()
     {
-        feed.Clear();
+        feed.Clear(user.Id);
         return NoContent();
     }
 
