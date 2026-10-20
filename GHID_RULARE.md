@@ -175,28 +175,26 @@ nou una temporară).
 
 ### Baza de date
 
-Rulează doar baza în Docker (îți trebuie `.env`, ca la §1):
+Completează `.env` ca la §1, apoi rulează doar baza în Docker:
 
 ```bash
 docker compose up -d db
 ```
 
-Apoi spune-i serverului unde e baza și care e primul cont. Se țin în **user-secrets**, în afara
-proiectului, nu în cod:
+Atât. În modul Development serverul pornit din Visual Studio **citește singur același `.env`**: își
+face legătura la bază din `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` și `POSTGRES_PORT`, și ia
+contul de admin din `ADMIN_EMAIL` / `ADMIN_PASSWORD`. **Migrațiile se aplică singure** la pornire.
+
+> **Ai PostgreSQL instalat direct pe Windows?** Atunci el ține deja portul 5432 și containerul bazei nu
+> poate porni. Pune `POSTGRES_PORT=5433` în `.env` — serverul îl citește de acolo, deci nu mai ai
+> nimic de schimbat.
+
+Dacă vrei alte valori doar pe calculatorul tău, fără să atingi `.env`, le poți pune în user-secrets —
+ele au întâietate:
 
 ```bash
-dotnet user-secrets set ConnectionStrings:BestBet "Host=localhost;Port=5432;Database=bestbet;Username=bestbet;Password=PAROLA_DIN_ENV" --project BestBet.Server
+dotnet user-secrets set ConnectionStrings:BestBet "Host=localhost;Port=5433;Database=bestbet;Username=bestbet;Password=..." --project BestBet.Server
 ```
-
-```bash
-dotnet user-secrets set ADMIN_EMAIL "tu@exemplu.ro" --project BestBet.Server
-```
-
-```bash
-dotnet user-secrets set ADMIN_PASSWORD "cel-putin-12-caractere" --project BestBet.Server
-```
-
-În modul Development, **migrațiile se aplică singure** la pornirea serverului.
 
 ### Din Visual Studio
 
@@ -806,7 +804,7 @@ l-a primit primește `401`.
 dotnet test
 ```
 
-396 de teste, în câteva secunde. Printre ele, în
+403 de teste, în câteva secunde. Printre ele, în
 `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs`, exemplele numerice din specificație —
 acelea sunt definiția lui „matematica e încă bună”. Dacă vreunul pică, se repară întâi el.
 
@@ -872,7 +870,22 @@ Rulezi în modul local și API-ul nu e pornit, sau nu ajunge la bază (`docker c
 Interfața are nevoie de API, iar API-ul de bază.
 
 **Serverul local nu pornește: „The connection string 'BestBet' is not set”**
-Lipsește user-secret-ul cu legătura la bază — vezi §2, *Baza de date*.
+Nu găsește `.env` (trebuie să fie lângă `docker-compose.yml`) sau în el lipsesc `POSTGRES_USER` /
+`POSTGRES_PASSWORD`. Vezi §2, *Baza de date*.
+
+**În consola Vite apare `http proxy error: /api/... ECONNREFUSED`**
+Vite merge, dar serverul ASP.NET nu: n-a pornit sau s-a oprit la start. Uită-te în fereastra lui din
+Visual Studio (Output → Debug) după motiv — de obicei baza nu e pornită (`docker compose up -d db`) sau
+lipsește `.env`.
+
+**Containerul bazei rămâne „Created” și nu pornește**
+Portul e deja ocupat — cel mai des de un PostgreSQL instalat pe Windows (pe 5432) sau de vechiul
+container `bestbet` (pe 8080). Pune alt port în `.env` (`POSTGRES_PORT=5433`, `BESTBET_PORT=8081`) sau
+oprește ce îl ocupă. Ca să vezi motivul exact:
+
+```bash
+docker compose up db
+```
 
 **Login-ul merge pe calculatorul meu, dar nu de pe alt dispozitiv**
 Cookie-ul de sesiune e `Secure`: de pe alt dispozitiv browserul îl trimite doar peste HTTPS. Pune

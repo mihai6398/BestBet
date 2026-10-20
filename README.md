@@ -84,23 +84,21 @@ HTTPS reverse proxy rather than publishing port 8080 on the network.
 
 ### For development
 
-Run only the database in Docker, and the server and Vite from the IDE as before:
+Fill in `.env` as above, then run only the database in Docker, and the server and Vite from the IDE
+as before:
 
 ```bash
 docker compose up -d db
 ```
 
-```bash
-dotnet user-secrets set ConnectionStrings:BestBet "Host=localhost;Port=5432;Database=bestbet;Username=bestbet;Password=<POSTGRES_PASSWORD from .env>" --project BestBet.Server
-```
+In Development the server reads the same `.env` itself: it builds the connection string from
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` and `POSTGRES_PORT` (pointing at localhost, where
+compose publishes the database), and takes `ADMIN_EMAIL` / `ADMIN_PASSWORD` from it. Anything set with
+`dotnet user-secrets` or as an environment variable wins over the file. Outside Development the file
+is not read at all.
 
-```bash
-dotnet user-secrets set ADMIN_EMAIL "you@example.com" --project BestBet.Server
-```
-
-```bash
-dotnet user-secrets set ADMIN_PASSWORD "<at least 12 characters>" --project BestBet.Server
-```
+If PostgreSQL is already installed on the machine it usually holds port 5432 — set `POSTGRES_PORT` to a
+free one such as 5433, for both compose and the server.
 
 Then open `BestBet.sln` and press F5 — Visual Studio starts the API and the Vite dev server together,
 with hot reload, at <https://localhost:5173>. In Development the migrations are applied on start.
@@ -127,7 +125,7 @@ dotnet test
 npm --prefix bestbet.client test
 ```
 
-396 server tests and 250 client tests. The server's include the worked examples from the specification,
+403 server tests and 250 client tests. The server's include the worked examples from the specification,
 pinned as an acceptance suite in `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs` — those
 are the definition of "the maths is still right", and if one of them drifts, fix that before adding
 anything.
