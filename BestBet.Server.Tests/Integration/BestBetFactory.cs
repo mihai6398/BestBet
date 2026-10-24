@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.Testing.Handlers;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using BestBet.Services;
 using Testcontainers.PostgreSql;
 
 namespace BestBet.Server.Tests.Integration;
@@ -64,6 +66,10 @@ public sealed class BestBetFactory : WebApplicationFactory<Program>, IAsyncLifet
         // be shared by the whole suite. The limiter has a test of its own with a low limit.
         builder.UseSetting("RateLimiting:LoginPermitsPerMinute", "100000");
         builder.UseSetting("RateLimiting:RequestsPerMinute", "100000");
+
+        // FotMob is served from the captured fixtures: no test may depend on a match being on.
+        builder.ConfigureTestServices(services =>
+            services.AddHttpClient<FotMobClient>().ConfigurePrimaryHttpMessageHandler(() => new FixtureFotMob()));
     }
 
     /// <summary>

@@ -6,6 +6,7 @@ import { BankrollInput } from './components/BankrollInput';
 import { SaveBetDialog } from './components/BetDialogs';
 import { BatchResultsTable } from './components/BatchResultsTable';
 import { EdgeResultCard } from './components/EdgeResultCard';
+import { LiveBetsPanel } from './components/LiveBetsPanel';
 import { LiveMonitorPanel } from './components/LiveMonitorPanel';
 import { LiveStatsInputForm } from './components/LiveStatsInputForm';
 import { OddsInputForm } from './components/OddsInputForm';
@@ -21,16 +22,23 @@ import { batchBlockedBy, oddsFormFor, runBatch } from './lib/batch';
 import type { BatchCandidate, BatchRow } from './lib/batch';
 import {
     buildAnalyzeRequest,
+    buildPaceSettings,
     buildSaveBetRequest,
+    contextToLiveForm,
     defaultLiveForm,
     defaultOddsForm,
     defaultPaceForm,
+    liveStateFromForm,
 } from './lib/forms';
 import type { LiveFormState, OddsFormState, PaceFormState, ReferenceState } from './lib/forms';
 import { useLanguage } from './lib/i18n';
 import { POLL_INTERVAL_SECONDS, sameMatch } from './lib/liveFeed';
+import { afterError, afterPriced, afterResult, CHECK_SECONDS, hostOf, isDue } from './lib/liveRefresh';
+import type { BetRefresh, RefreshSource } from './lib/liveRefresh';
 import { readingToParsedStats } from './lib/providerFeed';
 import { parseStatsPaste } from './lib/statsPaste';
+import { addReading, pruneHistories, readingFrom } from './lib/winChart';
+import type { WinReading } from './lib/winChart';
 import type { QuickImportResult } from './lib/quickImport';
 import type {
     AnalyzeResponse,
@@ -39,6 +47,8 @@ import type {
     Bet,
     BetStatus,
     BetStats,
+    MatchContext,
+    PaceSettings,
     PreMatchRates,
     ProviderReading,
     RepricedBet,
@@ -100,6 +110,28 @@ function App({ active = true }: AppProps) {
     const [repriced, setRepriced] = useState<Record<number, RepricedBet>>({});
     const [repricing, setRepricing] = useState<number | null>(null);
 
+    // Every re-price of an open bet, kept per bet so its chart survives a reload in the middle of a
+    // match. Only open bets keep one; the log's own fetch is what says which those are, so nothing
+    // is pruned until it has answered at least once.
+    const [histories, setHistories] = useLocalStorage<Record<string, WinReading[]>>('bestbet.winHistory', {});
+    const [positionsLoaded, setPositionsLoaded] = useState(false);
+
+    // When each open bet was last re-priced and when it is due again, while the monitor is on. In
+    // memory only: a reload starts the schedule over, which costs one request per bet.
+    const [refresh, setRefresh] = useState<Record<number, BetRefresh>>({});
+
+    /** One re-price of a bet, from any route: onto its chart, and off the schedule for a minute. */
+    const remember = useCallback(
+        (id: number, state: LiveMatchState, now: RepricedBet, source: RefreshSource | null) => {
+            setHistories((current) => ({
+                ...current,
+                [id]: addReading(current[String(id)] ?? [], readingFrom(state, now)),
+            }));
+            setRefresh((current) => ({ ...current, [id]: afterPriced(Date.now(), source) }));
+        },
+        [setHistories],
+    );
+
     // Readings pushed in from the match page the user has open. See lib/liveFeed.ts for why they
     // are pushed rather than fetched.
     const [watching, setWatching] = useLocalStorage('bestbet.watching', false);
@@ -152,6 +184,7 @@ function App({ active = true }: AppProps) {
                 if (cancelled) return;
                 setPositions(rows);
                 setSummary(totals);
+                setPositionsLoaded(true);
             } catch {
                 // The log is secondary; a backend that is not up yet should not blank the form.
             }
@@ -161,6 +194,17 @@ function App({ active = true }: AppProps) {
             cancelled = true;
         };
     }, [logVersion, active]);
+
+    // A settled or deleted bet's chart has nothing left to follow.
+    useEffect(() => {
+        if (!positionsLoaded) return;
+
+        const open = positions.filter((position) => position.status === 'Open').map((position) => position.id);
+        setHistories((current) => {
+            const kept = pruneHistories(current, open);
+            return Object.keys(kept).length === Object.keys(current).length ? current : kept;
+        });
+    }, [positions, positionsLoaded, setHistories]);
 
     useEffect(() => {
         if (!active) return undefined;
@@ -353,6 +397,18 @@ function App({ active = true }: AppProps) {
               ? `push:${feed.receivedUtc}`
               : null;
 
+    /** Where the reading in force came from, for the bet cards: which site, which match, a link to check. */
+    const pushedFrom = feed?.source ?? null;
+    const feedSource = useMemo<RefreshSource | null>(() => {
+        if (via === 'provider' && providerReading) {
+            return { provider: providerReading.provider, matchLabel: providerReading.matchLabel, url: providerReading.url };
+        }
+        if (via === 'push' && pushedFrom) {
+            return { provider: hostOf(pushedFrom), matchLabel: feedParsed?.matchLabel ?? null, url: pushedFrom };
+        }
+        return null;
+    }, [via, providerReading, pushedFrom, feedParsed?.matchLabel]);
+
     const tracked = useMemo(
         () =>
             positions.filter(
@@ -458,6 +514,10 @@ function App({ active = true }: AppProps) {
     const feedLiveState = useMemo<LiveMatchState | null>(() => {
         if (!feedParsed || feedParsed.missing.length > 0) return null;
 
+        // A pasted page has no context and leaves these out, which the model reads as "work the
+        // half out from the minute, count the usual stoppage, eleven a side".
+        const context: MatchContext | undefined = feedParsed.context;
+
         return {
             minutePlayed: feedParsed.minute!,
             cumulativeXgHome: feedParsed.xgHome!,
@@ -465,8 +525,30 @@ function App({ active = true }: AppProps) {
             currentGoalsHome: feedParsed.goalsHome ?? 0,
             currentGoalsAway: feedParsed.goalsAway ?? 0,
             isPreMatch: false,
+            period: context?.period ?? null,
+            addedTimeFirstHalf: context?.addedTimeFirstHalf ?? null,
+            addedTimeSecondHalf: context?.addedTimeSecondHalf ?? null,
+            redCardsHome: context?.redCardsHome ?? 0,
+            redCardsAway: context?.redCardsAway ?? 0,
+            lastRedCardMinute: context?.lastRedCardMinute ?? null,
         };
     }, [feedParsed]);
+
+    /**
+     * The pace settings a reading is priced with: the user's choice of corrections, and the recent
+     * window from the provider's shot map rather than whatever is in the boxes. A window typed for
+     * another moment of the match — or left over from the last reading — would be priced as now.
+     */
+    const feedPace = useMemo<PaceSettings>(() => {
+        const recent = feedParsed?.context?.recent ?? null;
+
+        return buildPaceSettings({
+            ...pace,
+            recentWindowMinutes: recent ? String(recent.minutes) : '',
+            recentXgHome: recent ? String(recent.xgHome) : '',
+            recentXgAway: recent ? String(recent.xgAway) : '',
+        });
+    }, [feedParsed, pace]);
 
     /** Writes a new reading into the form, once. */
     useEffect(() => {
@@ -486,14 +568,34 @@ function App({ active = true }: AppProps) {
             cumulativeXgAway: String(feedLiveState.cumulativeXgAway),
             currentGoalsHome: String(feedLiveState.currentGoalsHome),
             currentGoalsAway: String(feedLiveState.currentGoalsAway),
+            ...(feedParsed?.context ? contextToLiveForm(feedParsed.context) : {}),
         }));
+
+        // The provider is in charge of the recent window the same way it is of the minute: written
+        // in when it has one and cleared when it has not, so the boxes never hold a window from a
+        // reading that has already been replaced. A pasted page has no say over it either way.
+        const context = feedParsed?.context;
+        if (context) {
+            const recent = context.recent;
+            // eslint-disable-next-line react/set-state-in-effect
+            setPace((current) =>
+                current.corrected
+                    ? {
+                          ...current,
+                          recentWindowMinutes: recent ? String(recent.minutes) : '',
+                          recentXgHome: recent ? String(recent.xgHome) : '',
+                          recentXgAway: recent ? String(recent.xgAway) : '',
+                      }
+                    : current,
+            );
+        }
 
         const label = feedParsed?.matchLabel;
         if (label) {
             // eslint-disable-next-line react/set-state-in-effect
             setOdds((current) => (current.matchLabel === '' ? { ...current, matchLabel: label } : current));
         }
-    }, [watching, readingKey, feedLiveState, feedParsed?.matchLabel, setLive, setOdds]);
+    }, [watching, readingKey, feedLiveState, feedParsed?.matchLabel, feedParsed?.context, setLive, setOdds, setPace]);
 
     /**
      * Re-prices the open bets on the match the reading came from.
@@ -508,7 +610,8 @@ function App({ active = true }: AppProps) {
         // The prior is part of the key: applying or dropping the pre-match numbers mid-match has
         // to re-price the open bets, not wait for the next reading to happen along.
         const prior = preMatch ? `${preMatch.homeExpectedGoals}/${preMatch.awayExpectedGoals}@${preMatchFor}` : '';
-        const reading = `${readingKey}|${tracked.map((position) => position.id).join(',')}|${prior}`;
+        const reading =
+            `${readingKey}|${tracked.map((position) => position.id).join(',')}|${prior}|${pace.corrected}`;
         if (repricedReading.current === reading) return;
         repricedReading.current = reading;
 
@@ -517,9 +620,11 @@ function App({ active = true }: AppProps) {
                 try {
                     const now = await analysisClient.reprice(position.id, {
                         liveState: feedLiveState,
+                        pace: feedPace,
                         preMatch: preMatch && sameMatch(position.matchLabel, preMatchFor) ? preMatch : undefined,
                     });
                     setRepriced((current) => ({ ...current, [position.id]: now }));
+                    remember(position.id, feedLiveState, now, feedSource);
                 } catch (e) {
                     // One row that cannot be re-priced must not stop the others — but it must not
                     // vanish either. A monitor that fails quietly leaves the previous minute's
@@ -528,7 +633,87 @@ function App({ active = true }: AppProps) {
                 }
             }),
         );
-    }, [watching, readingKey, feedLiveState, tracked, preMatch, preMatchFor, t]);
+    }, [watching, readingKey, feedLiveState, feedPace, feedSource, pace.corrected, tracked, preMatch, preMatchFor, remember, t]);
+
+    /**
+     * Every open bet, re-priced once a minute against its own match while the monitor is on.
+     *
+     * The monitor's own match is re-priced at every reading above, which keeps those bets off this
+     * schedule — they are never due. Every other open bet is asked about here: the server finds its
+     * match by the bet's team names, reads it and prices it. One bet at a time is fine; there are
+     * never many open at once and each answer is a cached read on the server.
+     *
+     * Kept in a ref and run off one interval, so the interval is not torn down and rebuilt on every
+     * render — a minute that keeps restarting is a minute that never arrives.
+     */
+    const sweep = useRef<() => Promise<void>>(async () => {});
+    const sweeping = useRef(false);
+
+    useEffect(() => {
+        sweep.current = async () => {
+            if (sweeping.current) return;
+            sweeping.current = true;
+
+            try {
+                const now = Date.now();
+                const due = positions.filter(
+                    (position) => position.status === 'Open' && isDue(refresh[position.id], now),
+                );
+
+                for (const position of due) {
+                    try {
+                        const result = await analysisClient.repriceLive(position.id, {
+                            // The window is the reading's own; anything in the boxes belongs to the form.
+                            pace: buildPaceSettings({ ...pace, recentWindowMinutes: '', recentXgHome: '', recentXgAway: '' }),
+                            preMatch: preMatch && sameMatch(position.matchLabel, preMatchFor) ? preMatch : undefined,
+                        });
+
+                        if (result.repriced && result.liveState) {
+                            const priced = result.repriced;
+                            setRepriced((current) => ({ ...current, [position.id]: priced }));
+                            remember(position.id, result.liveState, priced, {
+                                provider: result.reading?.provider ?? 'FotMob',
+                                matchLabel: result.reading?.matchLabel ?? null,
+                                url: result.reading?.url ?? null,
+                            });
+                        } else {
+                            setRefresh((current) => ({
+                                ...current,
+                                [position.id]: afterResult(current[position.id], Date.now(), result),
+                            }));
+                        }
+                    } catch (e) {
+                        const message = e instanceof Error ? e.message : t.reprice.failed;
+                        setRefresh((current) => ({
+                            ...current,
+                            [position.id]: afterError(current[position.id], Date.now(), message),
+                        }));
+                    }
+                }
+            } finally {
+                sweeping.current = false;
+            }
+        };
+    });
+
+    useEffect(() => {
+        if (!watching) return undefined;
+
+        const run = () => void sweep.current();
+        run();
+        const timer = window.setInterval(run, CHECK_SECONDS * 1000);
+        return () => window.clearInterval(timer);
+    }, [watching]);
+
+    // A bet that has just appeared — the log arriving after a reload, a bet just saved — is asked
+    // about now rather than at the next check. The schedule keeps this from asking twice.
+    const openIds = positions
+        .filter((position) => position.status === 'Open')
+        .map((position) => position.id)
+        .join(',');
+    useEffect(() => {
+        if (watching && openIds !== '') void sweep.current();
+    }, [watching, openIds]);
 
     const blocked = batchBlockedBy(live);
     const blockedReason =
@@ -546,21 +731,16 @@ function App({ active = true }: AppProps) {
         setRepricing(id);
         setError(null);
         try {
-            const liveState: LiveMatchState = {
-                minutePlayed: Number(live.minutePlayed),
-                cumulativeXgHome: Number(live.cumulativeXgHome),
-                cumulativeXgAway: Number(live.cumulativeXgAway),
-                currentGoalsHome: Number(live.currentGoalsHome),
-                currentGoalsAway: Number(live.currentGoalsAway),
-                isPreMatch: false,
-            };
+            const liveState = liveStateFromForm(live);
 
             const matchLabel = positions.find((position) => position.id === id)?.matchLabel;
             const now = await analysisClient.reprice(id, {
                 liveState,
+                pace: buildPaceSettings(pace),
                 preMatch: preMatch && sameMatch(matchLabel, preMatchFor) ? preMatch : undefined,
             });
             setRepriced((current) => ({ ...current, [id]: now }));
+            remember(id, liveState, now, null);
         } catch (e) {
             setError(e instanceof Error ? e.message : t.reprice.failed);
         } finally {
@@ -654,7 +834,12 @@ function App({ active = true }: AppProps) {
                         ageSeconds={readingAge}
                         via={via}
                         watching={watching}
-                        onWatchingChange={setWatching}
+                        onWatchingChange={(next) => {
+                            // Starting the monitor again is the user asking again: bets it had given
+                            // up on — a match not found, a league without xG — get another try.
+                            if (next) setRefresh({});
+                            setWatching(next);
+                        }}
                         match={providerMatch}
                         onMatchChange={(next) => {
                             setProviderMatch(next);
@@ -742,6 +927,21 @@ function App({ active = true }: AppProps) {
                 </div>
 
                 <div className="column">
+                    <LiveBetsPanel
+                        positions={positions}
+                        histories={histories}
+                        repriced={repriced}
+                        refresh={refresh}
+                        watching={watching}
+                        onClearHistory={(id) =>
+                            setHistories((current) => {
+                                const next = { ...current };
+                                delete next[String(id)];
+                                return next;
+                            })
+                        }
+                    />
+
                     {(batch.length > 0 || batchRunning) && (
                         <BatchResultsTable
                             rows={batch}

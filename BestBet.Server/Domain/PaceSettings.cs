@@ -21,16 +21,22 @@ namespace BestBet.Domain;
 /// <param name="RecentXgAway">Away xG accrued inside that window.</param>
 /// <param name="RecencyWeight">0..1. How much of the blended rate comes from the recent window rather
 /// than the whole-match average. 0.5 splits it evenly.</param>
+/// <param name="Stoppage">Count the minutes the referee adds — the board when it has been shown, the
+/// usual amount when it has not — and measure the rate per minute actually played. Off, the match
+/// ends at 90 with the spec's fixed five minutes after 85.</param>
+/// <param name="RedCards">Lower the rate of a side playing a man down and raise its opponent's.</param>
 public record PaceSettings(
     bool Shrink = true,
     bool ScoreState = true,
     double? RecentWindowMinutes = null,
     double? RecentXgHome = null,
     double? RecentXgAway = null,
-    double RecencyWeight = 0.5)
+    double RecencyWeight = 0.5,
+    bool Stoppage = true,
+    bool RedCards = true)
 {
     /// <summary>The spec's original behaviour: the raw rate, extrapolated flat.</summary>
-    public static readonly PaceSettings Flat = new(Shrink: false, ScoreState: false);
+    public static readonly PaceSettings Flat = new(Shrink: false, ScoreState: false, Stoppage: false, RedCards: false);
 
     /// <summary>Everything on, with no recent window supplied.</summary>
     public static readonly PaceSettings Default = new();

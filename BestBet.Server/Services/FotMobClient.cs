@@ -66,8 +66,33 @@ public class FotMobClient(HttpClient http, IMemoryCache cache)
 
         var id = reference.Provider == MatchProvider.FotMob
             ? reference.FotMobId!
-            : await ResolveByNameAsync(reference.TeamsLabel!, cancellationToken);
+            : await ResolveByNameAsync(reference.TeamsLabel!, cancellationToken)
+              ?? throw new LiveSourceException(
+                  $"No match for “{reference.TeamsLabel!.Trim()}” was found at {DisplayName}. A Sofascore link only " +
+                  $"gives up the team names, so the match has to be found at {DisplayName} by name — paste the " +
+                  $"{DisplayName} link for the same match instead, or use the bookmarklet.");
 
+        return await ReadIdAsync(id, cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the match a saved bet is on, found by the bet's own "Home - Away" label.
+    /// </summary>
+    /// <remarks>
+    /// This is what lets every open bet follow its own match, rather than only the one match the
+    /// monitor was pointed at. A bet carries no provider id — it was saved from a form, a slip or a
+    /// paste — but it carries the two team names, and those are exactly what a Sofascore link gives
+    /// up too, so it is found the same way and under the same name-matching gate.
+    /// </remarks>
+    /// <returns>Null when no match by those names is listed in the three days around today.</returns>
+    public async Task<ProviderReading?> ReadByTeamsAsync(string matchLabel, CancellationToken cancellationToken = default)
+    {
+        var id = await ResolveByNameAsync(matchLabel, cancellationToken);
+        return id is null ? null : await ReadIdAsync(id, cancellationToken);
+    }
+
+    private async Task<ProviderReading> ReadIdAsync(string id, CancellationToken cancellationToken)
+    {
         var key = $"fotmob:reading:{id}";
 
         if (!cache.TryGetValue(key, out ProviderReading? reading) || reading is null)
@@ -101,7 +126,7 @@ public class FotMobClient(HttpClient http, IMemoryCache cache)
     /// the expensive failure: a wrong id reads a real clock off a real match that is not the one the
     /// user is betting on, and nothing downstream could tell.
     /// </remarks>
-    private async Task<string> ResolveByNameAsync(string teams, CancellationToken cancellationToken)
+    private async Task<string?> ResolveByNameAsync(string teams, CancellationToken cancellationToken)
     {
         var key = $"fotmob:resolved:{teams.ToLowerInvariant()}";
         if (cache.TryGetValue(key, out string? resolved) && resolved is not null)
@@ -135,10 +160,7 @@ public class FotMobClient(HttpClient http, IMemoryCache cache)
 
         if (best is null)
         {
-            throw new LiveSourceException(
-                $"No match for “{teams.Trim()}” was found at {DisplayName}. A Sofascore link only " +
-                $"gives up the team names, so the match has to be found at {DisplayName} by name — paste the " +
-                $"{DisplayName} link for the same match instead, or use the bookmarklet.");
+            return null;
         }
 
         cache.Set(key, best.Value.Id, CacheResolutionFor);

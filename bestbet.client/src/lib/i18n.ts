@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import { DISCLAIMER } from '../types/domain';
-import type { MarketKind, MarketSelection, BetStatus, Verdict } from '../types/domain';
+import type { MarketKind, MarketSelection, BetStatus, LiveUnavailable, Verdict } from '../types/domain';
 import type { ParseIssue } from './oddsPaste';
 
 /**
@@ -690,17 +690,85 @@ const ro = {
             'Extrapolare brută: ritmul de pe ceas este dus liniar până la final. O primă repriză ' +
             'intensă proiectează atunci un scor care aproape niciodată nu se întâmplă.',
         windowNote:
-            'Opțional, dar cel mai valoros câmp de aici: împărțirea pe reprize a furnizorului de ' +
-            'statistici. Ia repriza a doua ca tot meciul minus prima repriză, iar modelul va cântări ' +
+            'Cel mai valoros câmp de aici: xG-ul de acum, nu media meciului. Când urmărești meciul ' +
+            'prin link se completează singur din șuturile FotMob, pentru ultimele 20 de minute. Altfel ' +
+            'e opțional: ia repriza a doua ca tot meciul minus prima repriză, iar modelul va cântări ' +
             'ce face jocul acum mai mult decât media lui.',
         windowMinutes: 'Fereastra recentă (min)',
         recentXgHome: 'xG gazde în ea',
         recentXgAway: 'xG oaspeți în ea',
+        stoppage: 'Prelungiri și eliminări',
+        stoppageHint: ' — completate singure când urmărești meciul prin link',
+        stoppageNote:
+            'Tabla arbitrului de rezervă spune câte minute se mai joacă. Până apare, modelul ' +
+            'numără prelungirile obișnuite (3 min în prima repriză, 4,5 în a doua), iar un ' +
+            'cartonaș roșu scade ritmul echipei rămase în zece și îl crește pe al celeilalte.',
+        period: 'Repriza',
+        periodAuto: 'După minut',
+        periodFirst: 'Repriza 1',
+        periodHalfTime: 'Pauză',
+        periodSecond: 'Repriza 2',
+        addedFirst: 'Tabla la 45 (+min)',
+        addedSecond: 'Tabla la 90 (+min)',
+        redHome: 'Roșii gazde',
+        redAway: 'Roșii oaspeți',
+        redMinute: 'Minutul ultimului roșu',
         preMatchNote:
             'Înainte de start nu există date live din care să iasă o probabilitate, deci estimarea ' +
             'trebuie să fie a ta. Tot ce urmează — avantajul, miza, verdictul — valorează exact cât ' +
             'valorează acest singur număr.',
         yourProbability: 'Probabilitatea ta (%)',
+    },
+
+    chart: {
+        title: 'Pariurile live, minut cu minut',
+        intro:
+            'Șansa de câștig a fiecărui pariu deschis, recalculată la fiecare citire a meciului. ' +
+            'Linia punctată e pragul cotei luate: deasupra ei pariul valorează mai mult decât a costat, ' +
+            'sub ea mai puțin — linia cu care se compară o ofertă de cash-out. Benzile gri sunt ' +
+            'prelungirile, cât de late le-a anunțat arbitrul.',
+        empty: 'Încă nicio citire pentru pariul ăsta.',
+        summary: (now: string, minute: string, entry: string | null, threshold: string) =>
+            `Acum ${now} (${minute})` +
+            (entry === null ? '' : `, la intrare ${entry}`) +
+            `; pragul cotei e ${threshold}.`,
+        breakEven: (value: string) => `prag cotă ${value}`,
+        keyWin: 'șansa de câștig',
+        keyEntry: (value: string) => `la intrare ${value}`,
+        keyRed: 'cartonaș roșu',
+        win: 'câștig',
+        push: 'miză returnată',
+        halfTime: 'Pauză',
+        reds: (home: number, away: number) => `roșii ${home}-${away}`,
+        left: (minutes: number) => `mai sunt ~${minutes} min de joc`,
+        table: (count: number) => `Toate citirile (${count})`,
+        minute: 'Minut',
+        score: 'Scor',
+        remaining: 'Min. rămase',
+        clear: 'Șterge istoricul',
+        auto:
+            'Monitorizarea e activă: fiecare pariu deschis se recalculează singur în fiecare minut, ' +
+            'din propriul meci găsit pe FotMob după numele echipelor. Meciul urmărit prin link se ' +
+            'recalculează la fiecare citire.',
+        paused:
+            'Monitorizarea e oprită, deci pariurile nu se mai actualizează singure. Pornește-o din ' +
+            'panoul de monitorizare ca fiecare pariu deschis să se recalculeze în fiecare minut.',
+        notYet: 'Se caută meciul…',
+        updated: (seconds: number) => `Actualizat acum ${seconds} s`,
+        from: (provider: string) => `din ${provider}:`,
+        foundAt: (provider: string) => `Meci găsit la ${provider}:`,
+        next: (seconds: number) => `următoarea recalculare în ${seconds} s`,
+        failed: (message: string) => `Recalcularea nu a mers: ${message} Se reîncearcă în 2 minute.`,
+        unavailable: {
+            'not-found':
+                'Meciul nu a fost găsit la FotMob după numele echipelor din pariu. Se reîncearcă din ' +
+                '5 în 5 minute; ca să-l urmărești acum, pune linkul meciului în panoul de monitorizare.',
+            'not-started': 'Meciul nu a început încă. Se verifică din 5 în 5 minute.',
+            'no-xg':
+                'FotMob nu are xG pentru liga asta, deci pariul nu se poate recalcula de aici. ' +
+                'Urmărește meciul cu semnul de carte, de pe Sofascore.',
+            finished: 'Meciul s-a terminat. Decontează pariul în jurnal sau în Pariurile mele.',
+        } as Record<LiveUnavailable, string>,
     },
 
     result: {
@@ -1662,17 +1730,84 @@ const en: Dictionary = {
             'Raw extrapolation: whatever pace the clock shows is run flat to full time. A hot first ' +
             'half then projects a scoreline that almost never happens.',
         windowNote:
-            "Optional, and the sharpest input here: the provider's per-half split. Take the second " +
-            'half as all match minus first half and the model will weight what the game is doing ' +
-            'now over its average.',
+            'The sharpest input here: the xG of the game as it is now, not its average. Watching by ' +
+            "link, it fills itself in from FotMob's shots for the last 20 minutes. Otherwise it is " +
+            'optional: take the second half as all match minus first half and the model will weight ' +
+            'what the game is doing now over its average.',
         windowMinutes: 'Recent window (min)',
         recentXgHome: 'xG home in it',
         recentXgAway: 'xG away in it',
+        stoppage: 'Stoppage and red cards',
+        stoppageHint: ' — filled in for you when the match is watched by link',
+        stoppageNote:
+            "The fourth official's board says how many more minutes will be played. Until it goes " +
+            'up the model counts the usual stoppage (3 min in the first half, 4.5 in the second), ' +
+            'and a red card lowers the rate of the side down to ten and raises the other side’s.',
+        period: 'Half',
+        periodAuto: 'From the minute',
+        periodFirst: 'First half',
+        periodHalfTime: 'Half time',
+        periodSecond: 'Second half',
+        addedFirst: 'Board at 45 (+min)',
+        addedSecond: 'Board at 90 (+min)',
+        redHome: 'Reds home',
+        redAway: 'Reds away',
+        redMinute: 'Minute of the last red',
         preMatchNote:
             'Before kick-off there is no live data to derive a probability from, so the estimate ' +
             'has to be yours. Everything downstream — the edge, the stake, the verdict — is only as ' +
             'good as this one number.',
         yourProbability: 'Your probability (%)',
+    },
+
+    chart: {
+        title: 'Live bets, minute by minute',
+        intro:
+            'The win chance of every open bet, re-priced at each reading of the match. The dotted ' +
+            'line is the break-even of the price taken: above it the bet is worth more than it cost, ' +
+            'below it less — the line a cash-out offer is measured against. The grey bands are ' +
+            'stoppage time, as wide as the referee announced.',
+        empty: 'No readings for this bet yet.',
+        summary: (now: string, minute: string, entry: string | null, threshold: string) =>
+            `Now ${now} (${minute})` +
+            (entry === null ? '' : `, ${entry} at entry`) +
+            `; the price breaks even at ${threshold}.`,
+        breakEven: (value: string) => `break-even ${value}`,
+        keyWin: 'chance of winning',
+        keyEntry: (value: string) => `${value} at entry`,
+        keyRed: 'red card',
+        win: 'win',
+        push: 'stake returned',
+        halfTime: 'HT',
+        reds: (home: number, away: number) => `reds ${home}-${away}`,
+        left: (minutes: number) => `~${minutes} min of play left`,
+        table: (count: number) => `All readings (${count})`,
+        minute: 'Minute',
+        score: 'Score',
+        remaining: 'Min. left',
+        clear: 'Clear history',
+        auto:
+            'Monitoring is on: every open bet re-prices itself once a minute, from its own match as ' +
+            'found at FotMob by the team names. The match watched by link re-prices at every reading.',
+        paused:
+            'Monitoring is off, so the bets no longer update themselves. Turn it on in the monitor ' +
+            'panel and every open bet re-prices once a minute.',
+        notYet: 'Looking for the match…',
+        updated: (seconds: number) => `Updated ${seconds} s ago`,
+        from: (provider: string) => `from ${provider}:`,
+        foundAt: (provider: string) => `Found at ${provider}:`,
+        next: (seconds: number) => `next in ${seconds} s`,
+        failed: (message: string) => `Re-pricing failed: ${message} Trying again in 2 minutes.`,
+        unavailable: {
+            'not-found':
+                "No match by the bet's team names was found at FotMob. Trying again every 5 minutes; " +
+                'to follow it now, put the match link in the monitor panel.',
+            'not-started': 'The match has not started yet. Checking every 5 minutes.',
+            'no-xg':
+                'FotMob has no xG for this league, so the bet cannot be re-priced from here. Watch ' +
+                'the match with the bookmarklet, from Sofascore.',
+            finished: 'The match is over. Settle the bet in the log or in My bets.',
+        } as Record<LiveUnavailable, string>,
     },
 
     result: {

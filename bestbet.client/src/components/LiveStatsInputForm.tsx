@@ -87,6 +87,87 @@ export function LiveStatsInputForm({ value, onChange, pace, onPaceChange }: Prop
 
                     <fieldset className="subgroup">
                         <legend>
+                            {t.live.stoppage}
+                            <span className="hint">{t.live.stoppageHint}</span>
+                        </legend>
+
+                        <p className="note">{t.live.stoppageNote}</p>
+
+                        <div className="field-row">
+                            <label className="field field-narrow">
+                                <span>{t.live.period}</span>
+                                <select
+                                    value={value.period ?? ''}
+                                    onChange={(e) => set({ period: e.target.value as LiveFormState['period'] })}
+                                >
+                                    <option value="">{t.live.periodAuto}</option>
+                                    <option value="FirstHalf">{t.live.periodFirst}</option>
+                                    <option value="HalfTime">{t.live.periodHalfTime}</option>
+                                    <option value="SecondHalf">{t.live.periodSecond}</option>
+                                </select>
+                            </label>
+                            <label className="field field-narrow">
+                                <span>{t.live.addedFirst}</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="30"
+                                    placeholder="—"
+                                    value={value.addedTimeFirstHalf ?? ''}
+                                    onChange={(e) => set({ addedTimeFirstHalf: e.target.value })}
+                                />
+                            </label>
+                            <label className="field field-narrow">
+                                <span>{t.live.addedSecond}</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="30"
+                                    placeholder="—"
+                                    value={value.addedTimeSecondHalf ?? ''}
+                                    onChange={(e) => set({ addedTimeSecondHalf: e.target.value })}
+                                />
+                            </label>
+                        </div>
+                        <div className="field-row">
+                            <label className="field field-narrow">
+                                <span>{t.live.redHome}</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="4"
+                                    placeholder="0"
+                                    value={value.redCardsHome ?? ''}
+                                    onChange={(e) => set({ redCardsHome: e.target.value })}
+                                />
+                            </label>
+                            <label className="field field-narrow">
+                                <span>{t.live.redAway}</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="4"
+                                    placeholder="0"
+                                    value={value.redCardsAway ?? ''}
+                                    onChange={(e) => set({ redCardsAway: e.target.value })}
+                                />
+                            </label>
+                            <label className="field field-narrow">
+                                <span>{t.live.redMinute}</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="120"
+                                    placeholder="—"
+                                    value={value.lastRedCardMinute ?? ''}
+                                    onChange={(e) => set({ lastRedCardMinute: e.target.value })}
+                                />
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset className="subgroup">
+                        <legend>
                             {t.live.dynamics}
                             <span className="hint">{t.live.dynamicsHint}</span>
                         </legend>

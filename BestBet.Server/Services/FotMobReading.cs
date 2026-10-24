@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using BestBet.Contracts;
+using BestBet.Domain;
 
 namespace BestBet.Services;
 
@@ -24,6 +25,25 @@ public static class FotMobReading
 {
     /// <summary>The fields an analysis cannot run without. Mirrors REQUIRED in <c>statsPaste.ts</c>.</summary>
     private static readonly string[] Required = ["minute", "xgHome", "xgAway"];
+
+    /// <summary>
+    /// How far back the recent window reaches, in minutes of play. Twenty is long enough that one big
+    /// chance does not read as a new tempo and short enough to show a match that has just changed.
+    /// </summary>
+    public const double RecentWindowMinutes = 20.0;
+
+    /// <summary>
+    /// Before this much play there is no "recent" to speak of: the window would be most of the match,
+    /// and the whole-match rate already says what it would.
+    /// </summary>
+    public const double MinimumElapsedForWindow = 30.0;
+
+    /// <summary>
+    /// How far the shot list may drift from the provider's own xG total before it is not trusted.
+    /// The total is printed to two decimals and every shot carries more, so a few hundredths of
+    /// difference is rounding; more than this is a shot list that has not caught up yet.
+    /// </summary>
+    private const double ShotListTolerance = 0.1;
 
     public static ProviderReading From(JsonDocument document, string matchId)
     {
@@ -51,7 +71,171 @@ public static class FotMobReading
             Flag(status, "finished") ?? Flag(general, "finished") ?? false,
             DateTime.UtcNow);
 
-        return reading with { Missing = Required.Where(field => IsMissing(reading, field)).ToList() };
+        var events = Items(Child(Child(Child(root, "content"), "matchFacts"), "events"), "events").ToList();
+        var period = reading.Finished ? null : Period(status);
+        var (boardFirst, boardSecond) = Boards(events, Child(status, "liveTime"), period);
+        var lastRed = events
+            .Where(e => Text(e, "type") == "Card" && (Text(e, "card") ?? string.Empty).Contains("Red", StringComparison.Ordinal))
+            .Select(e => (int?)((Int(e, "time") ?? 0) + (Int(e, "overloadTime") ?? 0)))
+            .Max();
+
+        reading = reading with
+        {
+            Missing = Required.Where(field => IsMissing(reading, field)).ToList(),
+            Period = period,
+            AddedTimeFirstHalf = boardFirst,
+            AddedTimeSecondHalf = boardSecond,
+            RedCardsHome = Int(status, "numberOfHomeRedCards") ?? 0,
+            RedCardsAway = Int(status, "numberOfAwayRedCards") ?? 0,
+            LastRedCardMinute = lastRed,
+        };
+
+        return Recent(root, reading) is { } recent
+            ? reading with { RecentWindowMinutes = RecentWindowMinutes, RecentXgHome = recent.Home, RecentXgAway = recent.Away }
+            : reading;
+    }
+
+    /// <summary>
+    /// Which half the match is in, read off the provider's half markers.
+    /// </summary>
+    /// <remarks>
+    /// The timestamps under <c>halfs</c> are the dependable signal: each is filled in the moment that
+    /// half starts or ends, and they never go back. The clock's own <c>basePeriod</c> — 45 in the
+    /// first half, 90 in the second — is the fallback for a document that has no timestamps.
+    ///
+    /// This is what tells "45+2" from the 47th minute. Both are minute 47 to the paste parser's
+    /// rules, and one has a whole half still to come.
+    /// </remarks>
+    private static MatchPeriod? Period(JsonElement status)
+    {
+        var halfs = Child(status, "halfs");
+
+        if (Stamped(halfs, "firstExtraHalfStarted")) return null;
+        if (Stamped(halfs, "secondHalfStarted")) return MatchPeriod.SecondHalf;
+        if (Stamped(halfs, "firstHalfEnded")) return MatchPeriod.HalfTime;
+        if (Stamped(halfs, "firstHalfStarted")) return MatchPeriod.FirstHalf;
+
+        var live = Child(status, "liveTime");
+        if (HalfTime.IsMatch(Text(live, "short") ?? string.Empty)) return MatchPeriod.HalfTime;
+
+        return Int(live, "basePeriod") switch
+        {
+            45 => MatchPeriod.FirstHalf,
+            90 => MatchPeriod.SecondHalf,
+            _ => null,
+        };
+    }
+
+    private static bool Stamped(JsonElement halfs, string name) => !string.IsNullOrWhiteSpace(Text(halfs, name));
+
+    /// <summary>
+    /// The minutes the fourth official's board showed at the end of each half.
+    /// </summary>
+    /// <remarks>
+    /// Each board arrives as an <c>AddedTime</c> event pinned to minute 45 or 90, and stays in the
+    /// list for the rest of the match. The clock carries the same number as <c>addedTime</c> while
+    /// that stoppage is being played — and drops it back to 0 at the whistle — so it is only a
+    /// fallback, for the few seconds before the event itself shows up.
+    /// </remarks>
+    private static (int? First, int? Second) Boards(List<JsonElement> events, JsonElement liveTime, MatchPeriod? period)
+    {
+        int? first = null;
+        int? second = null;
+
+        foreach (var added in events.Where(e => Text(e, "type") == "AddedTime"))
+        {
+            if (Int(added, "minutesAddedInput") is not { } minutes) continue;
+
+            switch (Int(added, "time"))
+            {
+                case 45: first = minutes; break;
+                case 90: second = minutes; break;
+            }
+        }
+
+        if (Int(liveTime, "addedTime") is > 0 and var shown)
+        {
+            if (period == MatchPeriod.FirstHalf) first ??= shown;
+            if (period == MatchPeriod.SecondHalf) second ??= shown;
+        }
+
+        return (first, second);
+    }
+
+    /// <summary>
+    /// Each side's xG over the last <see cref="RecentWindowMinutes"/> minutes of play, from the shot map.
+    /// </summary>
+    /// <remarks>
+    /// This is the recent window the pace model has always been able to use and almost never got,
+    /// because nobody types a rolling xG split during a match. The shot map has every shot with its
+    /// minute and its xG, so the split can be worked out instead.
+    ///
+    /// Shots are placed on the same clock the model runs on — minutes of play actually elapsed — so
+    /// a window reaching back across half-time takes in the first half's stoppage rather than
+    /// skipping it.
+    ///
+    /// The shot list has to add up to the provider's own xG total before any of it is used. A list
+    /// that is still catching up after a flurry would show the last twenty minutes as quieter than
+    /// they were, and a window that is wrong is worse than none: none simply leaves the whole-match
+    /// rate in charge.
+    /// </remarks>
+    private static (double Home, double Away)? Recent(JsonElement root, ProviderReading reading)
+    {
+        if (reading.Finished
+            || reading.Minute is not { } minute || reading.XgHome is not { } xgHome || reading.XgAway is not { } xgAway)
+        {
+            return null;
+        }
+
+        var shots = Child(Child(root, "content"), "shotmap");
+        if (Child(shots, "shots").ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var clock = new LiveMatchState(
+            minute, xgHome, xgAway, 0, 0, false, reading.Period, reading.AddedTimeFirstHalf, reading.AddedTimeSecondHalf);
+        var elapsed = MatchClock.ElapsedMinutes(clock);
+        if (elapsed < MinimumElapsedForWindow)
+        {
+            return null;
+        }
+
+        var homeId = Int(Child(Child(root, "general"), "homeTeam"), "id");
+        if (homeId is null)
+        {
+            return null;
+        }
+
+        var from = elapsed - RecentWindowMinutes;
+        double totalHome = 0, totalAway = 0, recentHome = 0, recentAway = 0;
+
+        foreach (var shot in Items(shots, "shots"))
+        {
+            // An own goal is in the list under the side that scored it, with no chance created by them.
+            if (Flag(shot, "isOwnGoal") == true) continue;
+
+            var xg = Double(shot, "expectedGoals") ?? 0.0;
+            var home = Int(shot, "teamId") == homeId;
+            var at = (Int(shot, "min") ?? 0) + (Int(shot, "minAdded") ?? 0)
+                     + (Text(shot, "period") == "SecondHalf" ? MatchClock.FirstHalfStoppage(clock) : 0.0);
+
+            if (home) totalHome += xg; else totalAway += xg;
+
+            if (at > from)
+            {
+                if (home) recentHome += xg; else recentAway += xg;
+            }
+        }
+
+        if (Math.Abs(totalHome - xgHome) > ShotListTolerance || Math.Abs(totalAway - xgAway) > ShotListTolerance)
+        {
+            return null;
+        }
+
+        // Never more than the total it is part of: the two are rounded differently, and the model
+        // rightly refuses a window that claims more xG than the whole match.
+        return (Math.Round(Math.Min(recentHome, xgHome), 2), Math.Round(Math.Min(recentAway, xgAway), 2));
     }
 
     private static bool IsMissing(ProviderReading reading, string field) => field switch
@@ -302,4 +486,16 @@ public static class FotMobReading
         JsonValueKind.False => false,
         _ => null,
     };
+
+    private static int? Int(JsonElement parent, string name)
+    {
+        var value = Child(parent, name);
+        return value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number) ? number : null;
+    }
+
+    private static double? Double(JsonElement parent, string name)
+    {
+        var value = Child(parent, name);
+        return value.ValueKind == JsonValueKind.Number ? value.GetDouble() : null;
+    }
 }

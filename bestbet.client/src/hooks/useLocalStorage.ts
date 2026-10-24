@@ -16,14 +16,19 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         }
     });
 
+    // Takes an updater too, for state that several requests in flight write to at once: each has to
+    // build on what the last one left, not on the value it saw when it started.
     const update = useCallback(
-        (next: T) => {
-            setValue(next);
-            try {
-                window.localStorage.setItem(key, JSON.stringify(next));
-            } catch {
-                // Nothing to do — the value still works for this session.
-            }
+        (next: T | ((current: T) => T)) => {
+            setValue((current) => {
+                const value = typeof next === 'function' ? (next as (current: T) => T)(current) : next;
+                try {
+                    window.localStorage.setItem(key, JSON.stringify(value));
+                } catch {
+                    // Nothing to do — the value still works for this session.
+                }
+                return value;
+            });
         },
         [key],
     );

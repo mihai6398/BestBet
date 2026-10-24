@@ -44,14 +44,32 @@ public class MatchDynamicsTests
     }
 
     [Fact]
-    public void The_corrected_model_turns_that_same_position_into_a_skip()
+    public void The_pace_corrections_turn_that_same_position_into_a_skip()
     {
-        var response = _service.Analyze(Over65(pace: null));
+        // On the spec's clock, so this pins what the rate corrections do on their own.
+        var response = _service.Analyze(Over65(new PaceSettings(Stoppage: false, RedCards: false)));
 
         Assert.Equal(0.4755, response.Edge.OwnProbability, 4);
         Assert.Equal(-2.45, response.Edge.EdgePercentagePoints, 2);
         Assert.Equal(Verdict.Skip, response.Verdict);
         Assert.Equal(0.0, response.Stake.SuggestedStakeAmount);
+    }
+
+    [Fact]
+    public void Counting_stoppage_raises_it_again_but_not_to_a_bet()
+    {
+        // The spec's clock gives this match 54 minutes left at minute 36. About 61 will be played:
+        // nine to half time, the three or so a first half runs over, forty-five, and four and a half
+        // more after ninety. Seven and a half extra minutes for a side scoring at this rate is worth
+        // nearly seven points on the Over — which is why the clock is worth getting right, and why
+        // the old clock leant towards the Under on every match it priced. Still under the 5pp a live
+        // bet needs: the 26.5pp the flat model claimed is not coming back.
+        var response = _service.Analyze(Over65(pace: null));
+
+        Assert.Equal(61.5, response.Model!.RemainingMinutes, 10);
+        Assert.Equal(0.5435, response.Edge.OwnProbability, 4);
+        Assert.Equal(4.35, response.Edge.EdgePercentagePoints, 2);
+        Assert.Equal(Verdict.Marginal, response.Verdict);
     }
 
     [Fact]
@@ -82,9 +100,10 @@ public class MatchDynamicsTests
     {
         var pace = _service.Analyze(Over65(pace: null)).Model!.Pace;
 
-        Assert.Equal(2, pace.Steps.Count);
+        Assert.Equal(3, pace.Steps.Count);
         Assert.Contains(pace.Steps, s => s.Contains("league-average"));
         Assert.Contains(pace.Steps, s => s.Contains("leads by 2"));
+        Assert.Contains(pace.Steps, s => s.Contains("Stoppage counted: 61.5 minutes left rather than 54"));
     }
 
     // --- The caveat that used to read backwards -----------------------------
@@ -186,6 +205,7 @@ public class MatchDynamicsTests
 
         Assert.False(pace.IsAdjusted);
         Assert.Empty(pace.Steps);
+        Assert.Equal(pace.RawRateHome, pace.AdjustedRateHome, 12);
     }
 
     [Fact]
@@ -297,7 +317,8 @@ public class MatchDynamicsTests
         var settings = new PaceSettings(Shrink: false, ScoreState: false, RecentWindowMinutes: 15);
         var pace = PaceModel.Adjust(new LiveMatchState(60, 2.0, 0.5, 0, 0, false), settings);
 
-        Assert.False(pace.IsAdjusted);
+        Assert.Equal(pace.RawRateHome, pace.AdjustedRateHome, 12);
+        Assert.DoesNotContain(pace.Steps, s => s.Contains("Last 15 minutes"));
     }
 
     // --- Flat mode is still exactly the spec --------------------------------
@@ -345,7 +366,9 @@ public class MatchDynamicsTests
             () => PaceModel.Adjust(new LiveMatchState(0, 0.5, 0.5, 0, 0, false), PaceSettings.Default));
     }
 
-    private static PaceSettings Shrinkage() => new(Shrink: true, ScoreState: false);
+    // Each of these switches on one correction and nothing else, so a test of it measures that
+    // correction alone — stoppage changes the minutes every rate is measured in.
+    private static PaceSettings Shrinkage() => new(Shrink: true, ScoreState: false, Stoppage: false, RedCards: false);
 
-    private static PaceSettings ScoreState() => new(Shrink: false, ScoreState: true);
+    private static PaceSettings ScoreState() => new(Shrink: false, ScoreState: true, Stoppage: false, RedCards: false);
 }

@@ -13,7 +13,7 @@
 /// <param name="CurrentGoalsHome">Goals already on the board for home, carried so final totals can be formed.</param>
 /// <param name="CurrentGoalsAway">Goals already on the board for away.</param>
 public record GoalDistribution(
-    int RemainingMinutes,
+    double RemainingMinutes,
     double ExpectedRemainingHome,
     double ExpectedRemainingAway,
     double[] RemainingHomePmf,

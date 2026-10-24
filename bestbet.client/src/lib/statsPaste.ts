@@ -10,6 +10,8 @@
  * the UI shows that back before anything reaches the form — a misread xG would size a real stake.
  */
 
+import type { MatchContext } from '../types/domain';
+
 export interface StatRow {
     /** Stable key for the stat, so the interface can name it in the reader's own language. */
     id: StatId;
@@ -44,6 +46,11 @@ export interface ParsedStats {
     extras: StatRow[];
     /** The fields the analysis needs and the paste did not supply. */
     missing: MissingField[];
+    /**
+     * Period, the referee's boards, red cards and the recent xG — what a provider's API knows and a
+     * page of text does not. Absent from a paste; a fetched reading carries it.
+     */
+    context?: MatchContext;
 }
 
 const REQUIRED: ReadonlyArray<MissingField> = ['minute', 'xgHome', 'xgAway'];

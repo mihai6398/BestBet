@@ -14,6 +14,9 @@ namespace BestBet.Domain;
 /// <param name="IsAdjusted">False when the raw rate was used untouched.</param>
 /// <param name="Steps">One line per adjustment that actually fired, in the order they were applied.</param>
 /// <param name="Warning">Set when the raw projection was implausible enough to be worth saying out loud.</param>
+/// <param name="ElapsedMinutes">Minutes of play the rates were measured over: the minute on the clock,
+/// plus the first half's stoppage once the second half is on, when stoppage is counted.</param>
+/// <param name="RemainingMinutes">Minutes of play the rates are run over to the end of regulation time.</param>
 /// <param name="PriorGoalsHome">Goals per match the home rate was pulled towards. Null when shrinkage
 /// did not run, because then nothing was pulled anywhere.</param>
 /// <param name="PriorGoalsAway">The same for the away side.</param>
@@ -30,6 +33,8 @@ public record PaceAdjustment(
     bool IsAdjusted,
     IReadOnlyList<string> Steps,
     string? Warning,
+    double ElapsedMinutes,
+    double RemainingMinutes,
     double? PriorGoalsHome = null,
     double? PriorGoalsAway = null,
     bool PriorFromPreMatch = false)

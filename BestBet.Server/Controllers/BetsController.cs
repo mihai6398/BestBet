@@ -10,7 +10,7 @@ namespace BestBet.Server.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/bets")]
-public class BetsController(BetService bets) : ControllerBase
+public class BetsController(BetService bets, FotMobClient fotmob) : ControllerBase
 {
     /// <summary>The user's bets, newest first, optionally filtered and paged.</summary>
     /// <remarks>The total number of matching bets is in the <c>X-Total-Count</c> header.</remarks>
@@ -155,6 +155,81 @@ public class BetsController(BetService bets) : ControllerBase
         {
             var repriced = await bets.RepriceAsync(id, request, cancellationToken);
             return repriced is null ? NotFound() : Ok(repriced);
+        }
+        catch (AnalysisInputException ex)
+        {
+            return Problem(ex);
+        }
+    }
+
+    /// <summary>
+    /// Re-prices an open bet against its own match, which the server finds and reads itself.
+    /// </summary>
+    /// <remarks>
+    /// This is what keeps every open bet current while the monitor is on, not only the bets on the
+    /// one match it was pointed at: the browser asks once a minute per bet, and the match is found at
+    /// FotMob by the bet's team names under the same gate a Sofascore link goes through. The reading
+    /// comes back with the price so the panel can show which match was found — the one thing a name
+    /// match can get wrong, and the user is the one who can tell.
+    ///
+    /// A match that cannot be priced is not an error: not started yet, a league without xG, or over.
+    /// Those answer 200 with the reason, so the browser can say so and ask less often. Only a
+    /// provider that will not answer is a 502.
+    /// </remarks>
+    [HttpPost("{id:int}/reprice/live")]
+    [ProducesResponseType<LiveRepriceResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status502BadGateway)]
+    public async Task<ActionResult<LiveRepriceResult>> RepriceLive(
+        int id,
+        [FromBody] LiveRepriceRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (await bets.GetAsync(id, cancellationToken) is not { } bet)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(bet.MatchLabel))
+        {
+            return Ok(new LiveRepriceResult(null, null, null, ProviderLiveState.NotFound));
+        }
+
+        ProviderReading? reading;
+        try
+        {
+            reading = await fotmob.ReadByTeamsAsync(bet.MatchLabel, cancellationToken);
+        }
+        catch (LiveSourceException ex)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway, new ProblemDetails
+            {
+                Title = "The match could not be read",
+                Detail = ex.Message,
+                Status = StatusCodes.Status502BadGateway,
+            });
+        }
+
+        if (reading is null)
+        {
+            return Ok(new LiveRepriceResult(null, null, null, ProviderLiveState.NotFound));
+        }
+
+        var (state, unavailable) = ProviderLiveState.From(reading);
+        if (state is null)
+        {
+            return Ok(new LiveRepriceResult(reading, null, null, unavailable));
+        }
+
+        try
+        {
+            var repriced = await bets.RepriceAsync(
+                id,
+                new RepriceBetRequest(state, ProviderLiveState.Pace(request?.Pace, reading), request?.PreMatch),
+                cancellationToken);
+
+            return repriced is null ? NotFound() : Ok(new LiveRepriceResult(reading, state, repriced, null));
         }
         catch (AnalysisInputException ex)
         {

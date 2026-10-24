@@ -118,6 +118,28 @@ public record SettleBetRequest(BetStatus Status, double? Payout = null, double? 
 public record RepriceBetRequest(LiveMatchState LiveState, PaceSettings? Pace = null, PreMatchRates? PreMatch = null);
 
 /// <summary>
+/// Body of <c>POST /api/bets/{id}/reprice/live</c>: re-price a bet against its own match, fetched now.
+/// </summary>
+/// <param name="Pace">Which corrections to apply. The recent window is always the reading's own.</param>
+/// <param name="PreMatch">The match's pre-match expected goals, when the caller has them.</param>
+public record LiveRepriceRequest(PaceSettings? Pace = null, PreMatchRates? PreMatch = null);
+
+/// <summary>
+/// A bet re-priced against its match as the provider has it right now — or why it could not be.
+/// </summary>
+/// <param name="Reading">What the provider said, so the user can see which match was found. Null
+/// when no match by the bet's team names was listed.</param>
+/// <param name="LiveState">The state the bet was priced on, for the chart. Null when it was not priced.</param>
+/// <param name="Repriced">The re-price itself. Null when it could not be run.</param>
+/// <param name="Unavailable">Why not: <c>not-found</c>, <c>not-started</c>, <c>no-xg</c> or
+/// <c>finished</c>. Null when the bet was priced.</param>
+public record LiveRepriceResult(
+    ProviderReading? Reading,
+    LiveMatchState? LiveState,
+    RepricedBet? Repriced,
+    string? Unavailable);
+
+/// <summary>
 /// What an already-placed bet is worth now.
 /// </summary>
 /// <remarks>

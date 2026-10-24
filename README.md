@@ -126,7 +126,7 @@ dotnet test
 npm --prefix bestbet.client test
 ```
 
-403 server tests and 250 client tests. The server's include the worked examples from the specification,
+452 server tests and 276 client tests. The server's include the worked examples from the specification,
 pinned as an acceptance suite in `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs` — those
 are the definition of "the maths is still right", and if one of them drifts, fix that before adding
 anything.
@@ -179,7 +179,7 @@ that one user can never read, change or delete another's bets or money.
 A rate read off the clock is a small-sample estimate, and running it flat to full time is wrong in
 both directions. Barcelona 3-1 up at minute 36 on 2.38 xG projects 5.95 over ninety and prices Over
 6.5 at 76% against a market at 50%; a match that has been quiet for half an hour gets priced as if it
-will stay quiet. `PaceModel` corrects for three things, all on by default and all switchable:
+will stay quiet. `PaceModel` corrects for five things, all on by default and all switchable:
 
 - **Shrinkage** towards what these two teams usually produce, weighted by how much has actually been
   played. This does most of the work — on the match above it alone takes Over 6.5 from 76% to 50%.
@@ -190,8 +190,26 @@ will stay quiet. `PaceModel` corrects for three things, all on by default and al
   pull two defensive sides down harder in the same way.
 - **Score state**: the side protecting a lead attacks less, the side chasing attacks more, and both
   effects grow as the clock runs down.
-- **Recency**, when you supply xG for a recent window (a provider's per-half split). This is what
-  catches a game that has just opened up, or one that has died.
+- **Recency**: xG over a recent window, blended with the whole-match average. This is what catches
+  a game that has just opened up, or one that has died. Watching by link, it is the last 20 minutes
+  of play worked out from FotMob's shot map — used only when the shots add up to FotMob's own xG
+  total. Otherwise you can type a window in (a provider's per-half split).
+- **Stoppage time** (`MatchClock`). The spec's clock ends the match at 90 and adds a flat five
+  minutes only after minute 85, so at minute 80 it prices ten minutes of football when about
+  fifteen get played, and jumps from five minutes left at 85 to nine at 86. Now the fourth
+  official's board is counted once it is shown (plus the half minute halves run past it), and the
+  average until then: 3 minutes in the first half and 4.5 in the second, measured on 27 matches in
+  the top five leagues and the Champions League. Rates are per minute actually played, and a
+  per-match prior is spread over 97.5 minutes rather than 90, so the stoppage is not added on top of
+  numbers that already contain it. The period (first half, half time, second half) is what tells
+  "45+2" from the 47th minute; FotMob supplies it, and a typed minute is read on its own.
+- **Red cards**: the side down to ten has its rate cut by 30% and its opponent's raised by 25%,
+  applied only to the share of the rate built from eleven-a-side play — the xG since the card
+  already shows the man down.
+
+On the Barcelona match, counting stoppage gives 61.5 minutes left rather than 54, which takes the
+corrected Over 6.5 from 47.5% to 54.3%: still short of a live bet, and a measure of how much the old
+clock leant towards the Under.
 
 Every correction that fires is reported in the result rather than applied silently, and the caveat
 names the direction it went — the spec's fixed "treat this as a floor" wording reads backwards after
@@ -302,6 +320,24 @@ token sent it. Readings live in memory and are gone when the app stops.
 it is now, and returns the probability, the EV at the price already taken, and the fair price at
 this moment — which is what a cash-out offer has to be compared against. It writes nothing: the
 entry snapshot is the evidence that the decision was reasonable when it was made.
+
+**Live bets, minute by minute** — every re-price is also kept, per bet, in the browser, and drawn at
+the top of the results column: the win chance across the match, with the halves laid end to end and
+each half's stoppage as a shaded band as wide as the board, goals marked with the score, red cards,
+the entry point, and the break-even line of the price taken (above it the bet is worth more than it
+cost; below it, less). Hover, tap or use the arrow keys for any reading; every reading is also in a
+table underneath. A bet's history is dropped once it is settled.
+
+**Every open bet, once a minute.** The monitor reads one match, so on its own it only ever moved the
+bets on that match. While monitoring is on, every other open bet is now re-priced once a minute
+against its own match: `POST /api/bets/{id}/reprice/live` finds it at FotMob by the bet's team
+names — the same name-matching gate a Sofascore link goes through, and the same day lists, so the
+only thing that leaves the machine is the FotMob match id — reads it and prices it, recent window
+from the shot map included. Each card says when it was last updated, which match it was read from
+(linked, so a wrong name match is one click to spot) and when the next update is. A match that has
+not started, or was not found, is asked about every 5 minutes; one that is over, or in a league with
+no xG at FotMob, is not asked about again until monitoring is restarted. Bets on the monitored match
+itself keep updating at every reading and are never asked about twice.
 
 Later you fill in the **closing price** by hand, and the log computes closing-line value. That is the point of the table: win rate over thirty bets is noise,
 but consistently beating the close is the signature of a real edge. The scoreboard says nothing

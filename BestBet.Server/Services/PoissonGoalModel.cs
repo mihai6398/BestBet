@@ -51,11 +51,12 @@ public static class PoissonGoalModel
         => ExtrapolateFrom(state, PaceModel.Adjust(state, settings));
 
     /// <summary>
-    /// Builds the remaining-goals distribution from rates the pace model has already settled on.
+    /// Builds the remaining-goals distribution from rates the pace model has already settled on, over
+    /// the time it settled on — the two are measured in the same minutes and have to travel together.
     /// </summary>
     public static GoalDistribution ExtrapolateFrom(LiveMatchState state, PaceAdjustment adjustment)
     {
-        var remainingMinutes = RemainingMinutes(state.MinutePlayed);
+        var remainingMinutes = adjustment.RemainingMinutes;
 
         var expectedRemainingHome = adjustment.AdjustedRateHome * remainingMinutes;
         var expectedRemainingAway = adjustment.AdjustedRateAway * remainingMinutes;
@@ -94,9 +95,13 @@ public static class PoissonGoalModel
     }
 
     /// <summary>
-    /// Minutes left to play. Past minute 85 a fixed stoppage allowance is added, so a match shown as
-    /// "90+2" still has scoring time left in the model rather than collapsing to zero.
+    /// Minutes left to play on the spec's clock. Past minute 85 a fixed stoppage allowance is added, so
+    /// a match shown as "90+2" still has scoring time left in the model rather than collapsing to zero.
     /// </summary>
+    /// <remarks>
+    /// Kept as the spec wrote it, because the worked examples are pinned to it. The corrected model
+    /// counts stoppage properly instead — see <see cref="MatchClock"/>.
+    /// </remarks>
     public static int RemainingMinutes(int minutePlayed)
     {
         var regulationLeft = Math.Max(0, RegulationMinutes - minutePlayed);

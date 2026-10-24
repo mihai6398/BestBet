@@ -17,7 +17,7 @@
  */
 
 import type { MissingField, ParsedStats, StatId, StatRow } from './statsPaste';
-import type { ProviderReading } from '../types/domain';
+import type { MatchContext, ProviderReading } from '../types/domain';
 
 /** What a pasted link or id points at, as far as the browser can tell before asking the server. */
 export interface MatchRef {
@@ -128,6 +128,25 @@ export function readingToParsedStats(reading: ProviderReading): ParsedStats {
             away: row.away,
         })),
         missing: reading.missing as MissingField[],
+        context: contextOf(reading),
+    };
+}
+
+/** The part of a reading a pasted page cannot supply, gathered into the one place that carries it. */
+export function contextOf(reading: ProviderReading): MatchContext {
+    const recent =
+        reading.recentWindowMinutes !== null && reading.recentXgHome !== null && reading.recentXgAway !== null
+            ? { minutes: reading.recentWindowMinutes, xgHome: reading.recentXgHome, xgAway: reading.recentXgAway }
+            : null;
+
+    return {
+        period: reading.period ?? null,
+        addedTimeFirstHalf: reading.addedTimeFirstHalf ?? null,
+        addedTimeSecondHalf: reading.addedTimeSecondHalf ?? null,
+        redCardsHome: reading.redCardsHome ?? 0,
+        redCardsAway: reading.redCardsAway ?? 0,
+        lastRedCardMinute: reading.lastRedCardMinute ?? null,
+        recent,
     };
 }
 

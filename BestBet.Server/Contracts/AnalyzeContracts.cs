@@ -72,7 +72,7 @@ public record ReferenceLine(
 /// Null for pre-match analyses, where no model ran.
 /// </summary>
 public record ModelDiagnostics(
-    int RemainingMinutes,
+    double RemainingMinutes,
     double XgRateHomePerMinute,
     double XgRateAwayPerMinute,
     double ExpectedRemainingHome,

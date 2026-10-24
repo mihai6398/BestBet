@@ -56,7 +56,7 @@ public static class MarketProbabilityResolver
 
         var description =
             $"P(final total {(isOver ? ">" : "<")} {Num(line)}) = {Pct(win)}, from {Num(distribution.ExpectedRemainingHome)} + " +
-            $"{Num(distribution.ExpectedRemainingAway)} expected goals over the remaining {distribution.RemainingMinutes} minutes, " +
+            $"{Num(distribution.ExpectedRemainingAway)} expected goals over the remaining {Num(distribution.RemainingMinutes)} minutes, " +
             $"added to the {distribution.CurrentGoalsHome + distribution.CurrentGoalsAway} already scored.";
 
         if (push > 0)
@@ -97,7 +97,7 @@ public static class MarketProbabilityResolver
         var awayShare = lambdaTotal <= 0 ? 0.0 : lambdaAway / lambdaTotal;
 
         var description =
-            $"P({who}) = {Pct(win)}. Over the remaining {distribution.RemainingMinutes} minutes the model expects " +
+            $"P({who}) = {Pct(win)}. Over the remaining {Num(distribution.RemainingMinutes)} minutes the model expects " +
             $"{Num(lambdaHome)} home and {Num(lambdaAway)} away goals, so P(no further goal) = {Pct(none)} and the " +
             $"remaining {Pct(anyGoal)} splits {Pct(homeShare)} / {Pct(awayShare)} by scoring rate.";
 
@@ -140,7 +140,7 @@ public static class MarketProbabilityResolver
         var description =
             $"Final-result split from the current {distribution.CurrentGoalsHome}-{distribution.CurrentGoalsAway} score plus " +
             $"{Num(distribution.ExpectedRemainingHome)} / {Num(distribution.ExpectedRemainingAway)} expected goals over the " +
-            $"remaining {distribution.RemainingMinutes} minutes: home {Pct(homeWin)}, draw {Pct(draw)}, away {Pct(awayWin)}.";
+            $"remaining {Num(distribution.RemainingMinutes)} minutes: home {Pct(homeWin)}, draw {Pct(draw)}, away {Pct(awayWin)}.";
 
         return new MarketProbability(win, win, 0.0, description);
     }

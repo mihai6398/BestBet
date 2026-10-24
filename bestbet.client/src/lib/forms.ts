@@ -2,8 +2,11 @@ import { MARKET_KINDS } from '../types/domain';
 import type {
     AnalyzeRequest,
     AnalyzeResponse,
+    LiveMatchState,
     MarketKind,
     MarketSelection,
+    MatchContext,
+    MatchPeriod,
     PaceSettings,
     PreMatchRates,
     SaveBetRequest,
@@ -36,6 +39,17 @@ export interface LiveFormState {
     currentGoalsAway: string;
     /** Only used when isLive is false — there is no live data to derive a probability from. */
     manualOwnProbability: string;
+    /**
+     * Optional, because most of the ways a form gets filled — a paste, an import, a hand-typed
+     * minute — know nothing of these, and blank is their honest value: the period is read off the
+     * minute, the usual stoppage is counted, and both sides have eleven.
+     */
+    period?: MatchPeriod | '';
+    addedTimeFirstHalf?: string;
+    addedTimeSecondHalf?: string;
+    redCardsHome?: string;
+    redCardsAway?: string;
+    lastRedCardMinute?: string;
 }
 
 /**
@@ -56,6 +70,50 @@ export const defaultPaceForm = (): PaceFormState => ({
     recentXgHome: '',
     recentXgAway: '',
 });
+
+/** A whole number from a box, or null when the box is blank or holds something that is not one. */
+const wholeOrNull = (text: string | undefined): number | null => {
+    if (text === undefined || text.trim() === '') return null;
+    const value = Number(text);
+    return Number.isInteger(value) && value >= 0 ? value : null;
+};
+
+/**
+ * The match state the form describes, ready for the API.
+ *
+ * One builder for the analysis and for every re-price, so an open bet is never priced on a different
+ * reading of the same boxes than the analysis next to it.
+ */
+export function liveStateFromForm(live: LiveFormState): LiveMatchState {
+    return {
+        minutePlayed: Number(live.minutePlayed),
+        cumulativeXgHome: Number(live.cumulativeXgHome),
+        cumulativeXgAway: Number(live.cumulativeXgAway),
+        currentGoalsHome: Number(live.currentGoalsHome),
+        currentGoalsAway: Number(live.currentGoalsAway),
+        isPreMatch: false,
+        period: live.period ? live.period : null,
+        addedTimeFirstHalf: wholeOrNull(live.addedTimeFirstHalf),
+        addedTimeSecondHalf: wholeOrNull(live.addedTimeSecondHalf),
+        redCardsHome: wholeOrNull(live.redCardsHome) ?? 0,
+        redCardsAway: wholeOrNull(live.redCardsAway) ?? 0,
+        lastRedCardMinute: wholeOrNull(live.lastRedCardMinute),
+    };
+}
+
+/** A provider's context, written into the form's boxes. */
+export function contextToLiveForm(context: MatchContext): Partial<LiveFormState> {
+    const text = (value: number | null) => (value === null ? '' : String(value));
+
+    return {
+        period: context.period ?? '',
+        addedTimeFirstHalf: text(context.addedTimeFirstHalf),
+        addedTimeSecondHalf: text(context.addedTimeSecondHalf),
+        redCardsHome: String(context.redCardsHome),
+        redCardsAway: String(context.redCardsAway),
+        lastRedCardMinute: text(context.lastRedCardMinute),
+    };
+}
 
 export const marketKindConfig = (kind: MarketKind) =>
     MARKET_KINDS.find((m) => m.kind === kind) ?? MARKET_KINDS[0];
@@ -141,16 +199,7 @@ export function buildAnalyzeRequest(
             decimalOdds: Number(odds.decimalOdds),
             siblingOdds: odds.siblingOdds.map(Number).filter((n) => Number.isFinite(n) && n > 0),
         },
-        liveState: live.isLive
-            ? {
-                  minutePlayed: Number(live.minutePlayed),
-                  cumulativeXgHome: Number(live.cumulativeXgHome),
-                  cumulativeXgAway: Number(live.cumulativeXgAway),
-                  currentGoalsHome: Number(live.currentGoalsHome),
-                  currentGoalsAway: Number(live.currentGoalsAway),
-                  isPreMatch: false,
-              }
-            : null,
+        liveState: live.isLive ? liveStateFromForm(live) : null,
         bankroll,
         // Always explicit: the server can parse a label, but it should never have to guess which side
         // of the market a stake is being sized against.
@@ -179,10 +228,13 @@ export function buildAnalyzeRequest(
 /**
  * A recent window is only sent when BOTH sides of it are filled in. Half a window is not data, and
  * letting the missing side default to zero would invent a collapse in scoring nobody reported.
+ *
+ * Switching the corrections off means the spec's flat model all the way down — its clock included —
+ * so the two numbers side by side show what the corrections did, not some mix of the two.
  */
-function buildPaceSettings(pace: PaceFormState): PaceSettings {
+export function buildPaceSettings(pace: PaceFormState): PaceSettings {
     if (!pace.corrected) {
-        return { shrink: false, scoreState: false };
+        return { shrink: false, scoreState: false, stoppage: false, redCards: false };
     }
 
     const window = Number(pace.recentWindowMinutes);

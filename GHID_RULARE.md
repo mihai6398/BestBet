@@ -465,16 +465,56 @@ Testat pe Barcelona – Racing Club, minutul 36, 3–1, xG 2.38 la 0.30: ritmul 
 xG** pentru Barcelona pe tot meciul, dă *Peste 6.5* la **76.5%** contra unei piețe la 50%, și
 recomandă pariu cu miza la plafon. Piața avea dreptate.
 
-Trei corecții, fiecare vizibilă în rezultat, toate pornite din start:
+Cinci corecții, fiecare vizibilă în rezultat, toate pornite din start:
 
 | Corecție | Ce face | De ce |
 |---|---|---|
 | **Regresie la medie** | Trage ritmul observat spre ce produc de obicei cele două echipe: cifrele din panoul pre-meci (§5b), dacă le folosești, altfel un meci mediu de ligă (1.35 xG per echipă) | Un ritm citit din 36 de minute e o estimare pe eșantion mic, nu un fapt. Face aproape toată treaba: singură, duce *Peste 6.5* de la 76% la 50% |
 | **Starea scorului** | Echipa care conduce atacă mai puțin, cea care urmărește mai mult | Efectul crește spre finalul meciului, deci e scalat după cât s-a jucat |
 | **Recență** | Cântărește ce face meciul *acum* peste media lui | Prinde jocul care tocmai s-a deschis, sau care a murit |
+| **Prelungiri** | Numără minutele adăugate de arbitru: tabla, când a fost arătată, altfel media | Ceasul din specificație termina meciul la 90 — la minutul 80 vedea 10 minute rămase, nu ~15 |
+| **Cartonașe roșii** | Echipa rămasă în zece marchează mai rar, adversara mai des | Doar pentru partea din ritm construită unsprezece contra unsprezece |
 
-Pe meciul de mai sus, cu toate pornite: ritm **6.70 → 4.29 xG/90**, estimare **47.5%**, edge
-**−2.5pp**, verdict **SKIP**. Adică răspunsul corect.
+Pe meciul de mai sus, doar cu corecțiile de ritm (pe ceasul din specificație): ritm **6.70 → 4.29
+xG/90**, estimare **47.5%**, edge **−2.5pp**, verdict **SKIP**. Numărând și prelungirile, rămân
+**61.5** minute de joc în loc de 54, iar estimarea urcă la **54.3%**, edge **+4.3pp**, verdict
+**MARGINAL** — tot sub pragul de 5pp al unui pariu live. Cele 7,5 minute în plus sunt exact cât
+ignora ceasul vechi, mereu în favoarea lui *Sub*.
+
+### Prelungirile (timpul adăugat de arbitru)
+
+Până apare tabla, modelul numără prelungirile obișnuite: **3 minute** în prima repriză și **4,5** în
+a doua. Cifrele sunt măsurate, nu ghicite: 27 de meciuri din primele cinci ligi și Liga Campionilor
+(18–20 octombrie 2026), citite din FotMob — tabla și cât a durat de fapt fiecare repriză, din ora de
+start și de final. Reprizele au mers în medie cu ~0,5 minute peste tablă (tabla arată un minim),
+așa că odată ce apare tabla se numără **tabla + 0,5**.
+
+- Ritmul e calculat pe minutele **jucate efectiv**: la minutul 60 s-au jucat 60 de minute plus
+  prelungirile primei reprize, iar xG-ul de pe ceas s-a strâns în toate.
+- Media pe meci (1.35 sau cifrele pre-meci) e împărțită la **97,5** minute, nu la 90 — altfel
+  prelungirile ar fi adunate peste cifre care le conțin deja.
+- **Repriza** spune dacă „45+2" e prelungirea primei reprize sau minutul 47 din a doua. FotMob o dă
+  singur; la un minut scris de mână, peste 45 înseamnă repriza a doua (poți alege și manual).
+- Cât timp meciul se joacă încă, rămâne cel puțin **un minut**: după tablă arbitrul joacă mai departe
+  pentru ceva (o accidentare, VAR, un gol).
+
+Totalurile, 1X2 și handicapurile se decid pe 90 de minute plus prelungiri, deci reprizele de
+prelungire din cupe nu intră în model.
+
+### Cartonașele roșii
+
+O eliminare scade ritmul echipei rămase în zece cu **30%** și îl crește pe al adversarei cu **25%**
+(două eliminări: 0,70² și 1,25²; câte una de fiecare parte se anulează). Corecția se aplică doar
+părții din ritm construite unsprezece contra unsprezece: xG-ul jucat după cartonaș arată deja omul
+în minus, iar un roșu din minutul 10, privit la minutul 85, e deja aproape tot în cifre. De aceea
+contează și **minutul ultimului roșu**; fără el, cartonașul e tratat ca abia arătat.
+
+### Cum le completezi
+
+Urmărind meciul **prin link FotMob**, toate se completează singure la fiecare citire: repriza, tabla
+de la 45 și de la 90, cartonașele roșii și minutul ultimului, plus fereastra recentă. Altfel, le
+găsești în *Starea meciului → Prelungiri și eliminări*; câmpurile goale înseamnă „repriza după
+minut, prelungirile obișnuite, unsprezece contra unsprezece".
 
 ### De ce contează cifrele pre-meci în timpul meciului
 
@@ -494,9 +534,14 @@ medie de ligă*. Panoul pre-meci are nevoie de cheia API-Football (§5b); fără
 
 ### Fereastra recentă
 
-E cel mai ascuțit input de aici și e opțional. Furnizorii dau xG pe reprize — tab-ul `1.` de lângă
-`ALL` pe Sofascore. Repriza a doua este **tot meciul minus repriza întâi**; pui durata ei și cele
-două xG-uri în câmpurile *Recent window*, iar modelul cântărește ce se întâmplă acum peste medie.
+E cel mai ascuțit input de aici. Urmărind meciul **prin link**, se completează singură: xG-ul din
+**ultimele 20 de minute** de joc, adunat din șuturile pe care FotMob le dă cu minut și xG fiecare.
+E folosită doar dacă șuturile adună cât xG-ul total al FotMob — o listă rămasă în urmă după o
+avalanșă de ocazii ar arăta ultimele minute mai liniștite decât au fost — și doar după minutul 30.
+
+Altfel e opțională. Furnizorii dau xG pe reprize — tab-ul `1.` de lângă `ALL` pe Sofascore. Repriza
+a doua este **tot meciul minus repriza întâi**; pui durata ei și cele două xG-uri în câmpurile
+*Fereastra recentă*, iar modelul cântărește ce se întâmplă acum peste medie.
 
 Dacă completezi doar o parte din fereastră, e ignorată complet. Jumătate de fereastră nu e date, iar
 partea lipsă tratată ca zero ar inventa o prăbușire a jocului pe care n-a raportat-o nimeni.
@@ -524,7 +569,34 @@ Bifa **„Correct for pace and score state”**, în secțiunea *Match state*. O
 extrapolarea brută din specificație. Merită s-o compari: diferența dintre cele două numere e o
 măsură directă a cât de mult din „edge” era de fapt eroare de model.
 
-Prin API, trimite `"pace": { "shrink": false, "scoreState": false }`.
+Prin API, trimite `"pace": { "shrink": false, "scoreState": false, "stoppage": false, "redCards": false }`.
+
+### Graficul pariurilor live
+
+Sus în coloana rezultatelor, **Pariurile live, minut cu minut** arată fiecare pariu deschis care a
+fost recalculat în timpul meciului: șansa de câștig pe tot meciul, cu reprizele una după alta și
+prelungirile fiecărei reprize ca bandă gri, cât de lată a anunțat-o arbitrul. Sunt marcate golurile
+(cu scorul), cartonașele roșii, punctul de intrare și **pragul cotei luate** (linia punctată, 1/cota):
+deasupra lui pariul valorează mai mult decât a costat, sub el mai puțin — linia cu care compari o
+ofertă de cash-out. Treci cu mouse-ul, atinge sau folosește săgețile pentru orice citire; toate sunt
+și într-un tabel dedesubt. Istoricul rămâne în browser peste un reload și se șterge când pariul e
+decontat.
+
+**Cât timp monitorizarea e activă, fiecare pariu deschis se recalculează singur în fiecare minut**
+— nu doar cele de pe meciul urmărit prin link. Serverul găsește meciul fiecărui pariu pe FotMob după
+numele echipelor din pariu (aceeași potrivire ca la un link Sofascore), îl citește și recalculează
+pariul, cu tot cu prelungiri, cartonașe roșii și fereastra recentă. Pe fiecare card scrie:
+
+- *Actualizat acum 12 s · din FotMob: Como - Manchester United · următoarea recalculare în 48 s* —
+  numele meciului e link, ca să verifici dintr-un clic că s-a găsit meciul corect;
+- *Meciul nu a început încă* sau *nu a fost găsit* — se reîncearcă din 5 în 5 minute;
+- *FotMob nu are xG pentru liga asta* sau *Meciul s-a terminat* — nu se mai încearcă până repornești
+  monitorizarea.
+
+Pariurile de pe meciul urmărit prin link sau cu semnul de carte se recalculează în continuare la
+fiecare citire (la câteva secunde) și nu sunt cerute de două ori. Spre FotMob nu pleacă nimic despre
+pariu: listele de meciuri se cer după dată, numele se compară pe calculatorul tău, apoi se cere
+meciul după ID.
 
 ---
 
