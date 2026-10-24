@@ -343,6 +343,78 @@ Later you fill in the **closing price** by hand, and the log computes closing-li
 but consistently beating the close is the signature of a real edge. The scoreboard says nothing
 confident until there are 30+ priced positions, and says so explicitly.
 
+## Polymarket scanner
+
+### What Polymarket actually returns
+
+Everything below was read off the live public APIs (no key, no account) on 24 October 2026, and the
+responses are kept untouched in `BestBet.Server.Tests/Fixtures/polymarket-*.json` — the DTOs and the
+mapping are written against those, not against the documentation.
+
+**Gamma** (`https://gamma-api.polymarket.com`), the catalogue:
+
+- Sports are tags. `GET /sports` lists 491 leagues, each with its tag ids; the two this app uses are
+  **Soccer = 100350** and **Tennis = 864** (`GET /tags/{id}` confirms the labels). The soccer tag also
+  carries season-long markets (Ballon d'Or, league winners), so a *match* is an event with exactly two
+  `teams` and a `moneyline` market. `GET /sports/market-types` lists the 303 valid
+  `sportsMarketType` values.
+- `GET /events?tag_id=&active=true&closed=false&volume_min=&order=volume&ascending=false&limit=&offset=`
+  works as documented, and `volume_min` filters on the event's own `volume`.
+- `start_date_min` is **when the event was created**, not kick-off. The kick-off is `startTime`. A
+  football match's `endDate` equals its kick-off; a tennis match's is kick-off plus about seven days.
+  So the date window is asked of Gamma through `end_date_min` / `end_date_max` with a per-sport slack,
+  and the real filter on `startTime` is applied here.
+- A finished match can stay `closed: false` for hours with `ended: true`; one from 10 October still
+  said `live: true` two weeks later. Live means a recent `startTime` and `ended` not set, not the flag
+  alone. Live events carry `score` ("1-0", "2-6, 2-2") and `period` ("HT", "S2").
+- **One football match is nine events** sharing a `gameId`: the headline (the three 1X2 markets),
+  `-more-markets` (totals 0.5–8.5, both teams to score, spreads, team totals, half lines),
+  `-exact-score`, `-halftime-result`, `-first-to-score` and their half-time variants.
+  `GET /events?game_id={gameId}` — not in the documentation — returns all nine in one call. The
+  sibling can out-trade the headline: Atlético–Deportivo had $26k on the 1X2 and $211k on More Markets.
+- **1X2 is three binary markets** (`negRisk: true`), each Yes/No: "Will Liverpool FC win?", "…end in a
+  draw?", "Will Brighton win?". The draw is the thin one ($793 traded against $216k and $223k).
+- **Totals** are `sportsMarketType: "totals"`, with the line in `line` (2.5) and the outcomes
+  `["Over", "Under"]`, each its own token. They trade little (tens to hundreds of dollars) but carry
+  $4k–37k of resting liquidity, which is the number that matters for a stake.
+- **A tennis match is one event** with everything in it: `moneyline` (one market, outcomes are the
+  two players), `tennis_match_totals` (games, e.g. O/U 22.5), `tennis_set_totals` (O/U 2.5, outcomes
+  "Over 2.5" / "Under 2.5"), `tennis_set_handicap`, `tennis_game_handicap`, set winners. ITF matches
+  have no `gameId` at all.
+- Older totals exist outside any match's family: "EPL Matchday 17: Goals (O/U)" holds questions like
+  "Will Aston Villa and Manchester City combine for 3 or more goals?" with no `sportsMarketType`, no
+  `line`, the line only in `groupItemTitle` ("AVL-MCI O/U 2.5") and the kick-off in `gameStartTime`.
+  `public-search` finds it for `"Aston Villa Manchester City goals"`, but never surfaces a
+  `-more-markets` event.
+- `outcomes`, `outcomePrices` and `clobTokenIds` are JSON arrays encoded inside strings. `bestBid` /
+  `bestAsk` on a market are for its **first** token only.
+- Sports markets charge a taker fee: `feesEnabled: true`, `feeType: "sports_fees_v3"`,
+  `feeSchedule: {rate: 0.05, exponent: 1, takerOnly: true}`. Polymarket's fee page gives
+  `fee = shares × rate × p × (1 − p)` in USDC. At 46¢ that turns a 2.17 into a 2.12 — not noise.
+
+**CLOB** (`https://clob.polymarket.com`), the order books:
+
+- `GET /book?token_id=` returns price levels as strings, **bids ascending and asks descending** — the
+  best price is the *last* element of each list, not the first. The code takes the max bid and the
+  min ask rather than trusting the order.
+- `GET /price?side=buy` returns the best **bid** (0.63) and `side=sell` the best **ask** (0.64): the
+  side is the resting order's, not yours. The price you pay to back an outcome is the ask.
+- The two tokens of a binary market are one book seen from both sides: Under's best ask 0.37 with
+  1,416 shares is exactly 1 − Over's best bid 0.63 with the same 1,416 shares. So Under backs at
+  1 / 0.37 = 2.70, not at 1 / (1 − 0.635) = 2.74 off the mid.
+- `POST /books` with `[{"token_id": …}]` returns many books in one call; an unknown token is a 404
+  with `{"error": "No orderbook exists for the requested token id"}`.
+- `GET /prices-history?market={tokenId}&interval=1w&fidelity=60` returns `{"history": [{"t", "p"}]}`
+  — a traded/mid price per bucket, not the ask, and labelled that way on the chart.
+- No rate-limit headers come back (Cloudflare throttles by delaying). The documented limits are
+  Gamma `/events` 500 and `/public-search` 350 requests per 10 s, CLOB `/book` 1,500, `/books` 500
+  and `/prices-history` 1,000 per 10 s; the client stays far below them.
+
+**Volumes before kick-off are small.** At 02:00 on a Saturday the biggest football matches of the
+weekend had $334k–440k on their 1X2, and no tennis match due to start had more than $20k — the only
+one past $200k had already finished. Most of the money arrives in the last hours and in play, so the
+default thresholds ($500k football, $200k tennis) mostly show matches that are close or live.
+
 ## Not built yet
 
 Automated closing-price capture is still Phase 2 — see §8 of the specification. Build nothing from that list until this loop has been used on
