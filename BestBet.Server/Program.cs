@@ -7,6 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// In development, the .env next to docker-compose.yml configures the server run from the IDE too, so
+// filling it in is the whole setup. It only fills what user-secrets and the environment left unset.
+BestBet.Server.DevelopmentDotEnv.AddTo(builder);
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -22,9 +26,9 @@ builder.Services.AddSwaggerGen();
 // ConnectionStrings__BestBet in Docker, user-secrets in development — and never from this file.
 var connectionString = builder.Configuration.GetConnectionString("BestBet")
                        ?? throw new InvalidOperationException(
-                           "The connection string 'BestBet' is not set. In development run " +
-                           "`dotnet user-secrets set ConnectionStrings:BestBet \"Host=localhost;Port=5432;Database=bestbet;" +
-                           "Username=...;Password=...\" --project BestBet.Server`; in Docker it comes from .env.");
+                           "The connection string 'BestBet' is not set. Copy .env.example to .env next to " +
+                           "docker-compose.yml and fill in POSTGRES_USER and POSTGRES_PASSWORD — in development the " +
+                           "server reads it too — or set ConnectionStrings:BestBet with dotnet user-secrets.");
 builder.Services.AddDbContext<BestBetDbContext>(options => options.UseNpgsql(connectionString));
 
 builder.Services.AddBestBetSecurity(builder.Configuration, builder.Environment);

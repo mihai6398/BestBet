@@ -100,6 +100,15 @@ describe('a fetched reading in the shape a pasted one has', () => {
         finished: false,
         readUtc: '2026-10-17T21:18:00Z',
         ageSeconds: 0,
+        period: 'SecondHalf',
+        addedTimeFirstHalf: 2,
+        addedTimeSecondHalf: null,
+        redCardsHome: 0,
+        redCardsAway: 1,
+        lastRedCardMinute: 58,
+        recentWindowMinutes: 20,
+        recentXgHome: 0.41,
+        recentXgAway: 0.05,
         ...over,
     });
 
@@ -121,6 +130,26 @@ describe('a fetched reading in the shape a pasted one has', () => {
 
         expect(parsed.xgHome).toBeNull();
         expect(parsed.missing).toEqual(['xgHome', 'xgAway']);
+    });
+
+    it('carries what only a provider knows — the half, the boards, the cards, the recent xG', () => {
+        const context = readingToParsedStats(reading()).context;
+
+        expect(context).toEqual({
+            period: 'SecondHalf',
+            addedTimeFirstHalf: 2,
+            addedTimeSecondHalf: null,
+            redCardsHome: 0,
+            redCardsAway: 1,
+            lastRedCardMinute: 58,
+            recent: { minutes: 20, xgHome: 0.41, xgAway: 0.05 },
+        });
+    });
+
+    it('leaves the recent window out when the provider could not work one out', () => {
+        // Half a window is not data; a missing one leaves the whole-match rate in charge.
+        expect(readingToParsedStats(reading({ recentXgAway: null })).context?.recent).toBeNull();
+        expect(readingToParsedStats(reading({ recentWindowMinutes: null })).context?.recent).toBeNull();
     });
 
     it('tells a missing xG apart from any other kind of failure', () => {

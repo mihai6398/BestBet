@@ -1,3 +1,5 @@
+using BestBet.Domain;
+
 namespace BestBet.Contracts;
 
 /// <summary>
@@ -46,6 +48,17 @@ public record ProviderStatRow(string Id, string Label, string Home, string Away)
 /// browser adds its own elapsed time to this, so staleness is measured without either side having
 /// to trust the other's clock.
 /// </param>
+/// <param name="Period">Which half the clock is in, from the provider's own half-time markers. Null
+/// before kick-off, after the final whistle, and in extra time, which no market here settles on.</param>
+/// <param name="AddedTimeFirstHalf">The fourth official's board at 45, once it has been shown.</param>
+/// <param name="AddedTimeSecondHalf">The board at 90, once it has been shown.</param>
+/// <param name="RedCardsHome">Home players sent off.</param>
+/// <param name="RedCardsAway">Away players sent off.</param>
+/// <param name="LastRedCardMinute">The minute of the most recent sending-off, when there has been one.</param>
+/// <param name="RecentWindowMinutes">Length of the recent window below, in minutes of play. Null when
+/// the match is too young for one, or the provider's shot list did not add up to its own xG.</param>
+/// <param name="RecentXgHome">Home xG from shots inside that window.</param>
+/// <param name="RecentXgAway">Away xG from shots inside that window.</param>
 public record ProviderReading(
     string Provider,
     string MatchId,
@@ -61,4 +74,13 @@ public record ProviderReading(
     bool Ongoing,
     bool Finished,
     DateTime ReadUtc,
-    double AgeSeconds = 0.0);
+    double AgeSeconds = 0.0,
+    MatchPeriod? Period = null,
+    int? AddedTimeFirstHalf = null,
+    int? AddedTimeSecondHalf = null,
+    int RedCardsHome = 0,
+    int RedCardsAway = 0,
+    int? LastRedCardMinute = null,
+    double? RecentWindowMinutes = null,
+    double? RecentXgHome = null,
+    double? RecentXgAway = null);

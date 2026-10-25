@@ -84,23 +84,22 @@ HTTPS reverse proxy rather than publishing port 8080 on the network.
 
 ### For development
 
-Run only the database in Docker, and the server and Vite from the IDE as before:
+Fill in `.env` as above, then run only the database in Docker, and the server and Vite from the IDE
+as before:
 
 ```bash
 docker compose up -d db
 ```
 
-```bash
-dotnet user-secrets set ConnectionStrings:BestBet "Host=localhost;Port=5432;Database=bestbet;Username=bestbet;Password=<POSTGRES_PASSWORD from .env>" --project BestBet.Server
-```
+In Development the server reads the same `.env` itself: it builds the connection string from
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` and `POSTGRES_PORT` (pointing at localhost, where
+compose publishes the database), and takes `ADMIN_EMAIL` / `ADMIN_PASSWORD` from it. Anything set with
+`dotnet user-secrets` or as an environment variable wins over the file. Outside Development the file
+is not read at all.
 
-```bash
-dotnet user-secrets set ADMIN_EMAIL "you@example.com" --project BestBet.Server
-```
-
-```bash
-dotnet user-secrets set ADMIN_PASSWORD "<at least 12 characters>" --project BestBet.Server
-```
+The database is published on port 5433 by default rather than 5432, because a PostgreSQL installed
+directly on the machine usually holds 5432 already. `POSTGRES_PORT` changes it, for compose and the
+server alike.
 
 Then open `BestBet.sln` and press F5 — Visual Studio starts the API and the Vite dev server together,
 with hot reload, at <https://localhost:5173>. In Development the migrations are applied on start.
@@ -127,7 +126,7 @@ dotnet test
 npm --prefix bestbet.client test
 ```
 
-396 server tests and 250 client tests. The server's include the worked examples from the specification,
+452 server tests and 276 client tests. The server's include the worked examples from the specification,
 pinned as an acceptance suite in `BestBet.Server.Tests/Acceptance/SpecWorkedExamplesTests.cs` — those
 are the definition of "the maths is still right", and if one of them drifts, fix that before adding
 anything.
@@ -180,7 +179,7 @@ that one user can never read, change or delete another's bets or money.
 A rate read off the clock is a small-sample estimate, and running it flat to full time is wrong in
 both directions. Barcelona 3-1 up at minute 36 on 2.38 xG projects 5.95 over ninety and prices Over
 6.5 at 76% against a market at 50%; a match that has been quiet for half an hour gets priced as if it
-will stay quiet. `PaceModel` corrects for three things, all on by default and all switchable:
+will stay quiet. `PaceModel` corrects for five things, all on by default and all switchable:
 
 - **Shrinkage** towards what these two teams usually produce, weighted by how much has actually been
   played. This does most of the work — on the match above it alone takes Over 6.5 from 76% to 50%.
@@ -191,8 +190,26 @@ will stay quiet. `PaceModel` corrects for three things, all on by default and al
   pull two defensive sides down harder in the same way.
 - **Score state**: the side protecting a lead attacks less, the side chasing attacks more, and both
   effects grow as the clock runs down.
-- **Recency**, when you supply xG for a recent window (a provider's per-half split). This is what
-  catches a game that has just opened up, or one that has died.
+- **Recency**: xG over a recent window, blended with the whole-match average. This is what catches
+  a game that has just opened up, or one that has died. Watching by link, it is the last 20 minutes
+  of play worked out from FotMob's shot map — used only when the shots add up to FotMob's own xG
+  total. Otherwise you can type a window in (a provider's per-half split).
+- **Stoppage time** (`MatchClock`). The spec's clock ends the match at 90 and adds a flat five
+  minutes only after minute 85, so at minute 80 it prices ten minutes of football when about
+  fifteen get played, and jumps from five minutes left at 85 to nine at 86. Now the fourth
+  official's board is counted once it is shown (plus the half minute halves run past it), and the
+  average until then: 3 minutes in the first half and 4.5 in the second, measured on 27 matches in
+  the top five leagues and the Champions League. Rates are per minute actually played, and a
+  per-match prior is spread over 97.5 minutes rather than 90, so the stoppage is not added on top of
+  numbers that already contain it. The period (first half, half time, second half) is what tells
+  "45+2" from the 47th minute; FotMob supplies it, and a typed minute is read on its own.
+- **Red cards**: the side down to ten has its rate cut by 30% and its opponent's raised by 25%,
+  applied only to the share of the rate built from eleven-a-side play — the xG since the card
+  already shows the man down.
+
+On the Barcelona match, counting stoppage gives 61.5 minutes left rather than 54, which takes the
+corrected Over 6.5 from 47.5% to 54.3%: still short of a live bet, and a measure of how much the old
+clock leant towards the Under.
 
 Every correction that fires is reported in the result rather than applied silently, and the caveat
 names the direction it went — the spec's fixed "treat this as a floor" wording reads backwards after
@@ -304,9 +321,99 @@ it is now, and returns the probability, the EV at the price already taken, and t
 this moment — which is what a cash-out offer has to be compared against. It writes nothing: the
 entry snapshot is the evidence that the decision was reasonable when it was made.
 
+**Live bets, minute by minute** — every re-price is also kept, per bet, in the browser, and drawn at
+the top of the results column: the win chance across the match, with the halves laid end to end and
+each half's stoppage as a shaded band as wide as the board, goals marked with the score, red cards,
+the entry point, and the break-even line of the price taken (above it the bet is worth more than it
+cost; below it, less). Hover, tap or use the arrow keys for any reading; every reading is also in a
+table underneath. A bet's history is dropped once it is settled.
+
+**Every open bet, once a minute.** The monitor reads one match, so on its own it only ever moved the
+bets on that match. While monitoring is on, every other open bet is now re-priced once a minute
+against its own match: `POST /api/bets/{id}/reprice/live` finds it at FotMob by the bet's team
+names — the same name-matching gate a Sofascore link goes through, and the same day lists, so the
+only thing that leaves the machine is the FotMob match id — reads it and prices it, recent window
+from the shot map included. Each card says when it was last updated, which match it was read from
+(linked, so a wrong name match is one click to spot) and when the next update is. A match that has
+not started, or was not found, is asked about every 5 minutes; one that is over, or in a league with
+no xG at FotMob, is not asked about again until monitoring is restarted. Bets on the monitored match
+itself keep updating at every reading and are never asked about twice.
+
 Later you fill in the **closing price** by hand, and the log computes closing-line value. That is the point of the table: win rate over thirty bets is noise,
 but consistently beating the close is the signature of a real edge. The scoreboard says nothing
 confident until there are 30+ priced positions, and says so explicitly.
+
+## Polymarket scanner
+
+### What Polymarket actually returns
+
+Everything below was read off the live public APIs (no key, no account) on 24 October 2026, and the
+responses are kept untouched in `BestBet.Server.Tests/Fixtures/polymarket-*.json` — the DTOs and the
+mapping are written against those, not against the documentation.
+
+**Gamma** (`https://gamma-api.polymarket.com`), the catalogue:
+
+- Sports are tags. `GET /sports` lists 491 leagues, each with its tag ids; the two this app uses are
+  **Soccer = 100350** and **Tennis = 864** (`GET /tags/{id}` confirms the labels). The soccer tag also
+  carries season-long markets (Ballon d'Or, league winners), so a *match* is an event with exactly two
+  `teams` and a `moneyline` market. `GET /sports/market-types` lists the 303 valid
+  `sportsMarketType` values.
+- `GET /events?tag_id=&active=true&closed=false&volume_min=&order=volume&ascending=false&limit=&offset=`
+  works as documented, and `volume_min` filters on the event's own `volume`.
+- `start_date_min` is **when the event was created**, not kick-off. The kick-off is `startTime`. A
+  football match's `endDate` equals its kick-off; a tennis match's is kick-off plus about seven days.
+  So the date window is asked of Gamma through `end_date_min` / `end_date_max` with a per-sport slack,
+  and the real filter on `startTime` is applied here.
+- A finished match can stay `closed: false` for hours with `ended: true`; one from 10 October still
+  said `live: true` two weeks later. Live means a recent `startTime` and `ended` not set, not the flag
+  alone. Live events carry `score` ("1-0", "2-6, 2-2") and `period` ("HT", "S2").
+- **One football match is nine events** sharing a `gameId`: the headline (the three 1X2 markets),
+  `-more-markets` (totals 0.5–8.5, both teams to score, spreads, team totals, half lines),
+  `-exact-score`, `-halftime-result`, `-first-to-score` and their half-time variants.
+  `GET /events?game_id={gameId}` — not in the documentation — returns all nine in one call. The
+  sibling can out-trade the headline: Atlético–Deportivo had $26k on the 1X2 and $211k on More Markets.
+- **1X2 is three binary markets** (`negRisk: true`), each Yes/No: "Will Liverpool FC win?", "…end in a
+  draw?", "Will Brighton win?". The draw is the thin one ($793 traded against $216k and $223k).
+- **Totals** are `sportsMarketType: "totals"`, with the line in `line` (2.5) and the outcomes
+  `["Over", "Under"]`, each its own token. They trade little (tens to hundreds of dollars) but carry
+  $4k–37k of resting liquidity, which is the number that matters for a stake.
+- **A tennis match is one event** with everything in it: `moneyline` (one market, outcomes are the
+  two players), `tennis_match_totals` (games, e.g. O/U 22.5), `tennis_set_totals` (O/U 2.5, outcomes
+  "Over 2.5" / "Under 2.5"), `tennis_set_handicap`, `tennis_game_handicap`, set winners. ITF matches
+  have no `gameId` at all.
+- Older totals exist outside any match's family: "EPL Matchday 17: Goals (O/U)" holds questions like
+  "Will Aston Villa and Manchester City combine for 3 or more goals?" with no `sportsMarketType`, no
+  `line`, the line only in `groupItemTitle` ("AVL-MCI O/U 2.5") and the kick-off in `gameStartTime`.
+  `public-search` finds it for `"Aston Villa Manchester City goals"`, but never surfaces a
+  `-more-markets` event.
+- `outcomes`, `outcomePrices` and `clobTokenIds` are JSON arrays encoded inside strings. `bestBid` /
+  `bestAsk` on a market are for its **first** token only.
+- Sports markets charge a taker fee: `feesEnabled: true`, `feeType: "sports_fees_v3"`,
+  `feeSchedule: {rate: 0.05, exponent: 1, takerOnly: true}`. Polymarket's fee page gives
+  `fee = shares × rate × p × (1 − p)` in USDC. At 46¢ that turns a 2.17 into a 2.12 — not noise.
+
+**CLOB** (`https://clob.polymarket.com`), the order books:
+
+- `GET /book?token_id=` returns price levels as strings, **bids ascending and asks descending** — the
+  best price is the *last* element of each list, not the first. The code takes the max bid and the
+  min ask rather than trusting the order.
+- `GET /price?side=buy` returns the best **bid** (0.63) and `side=sell` the best **ask** (0.64): the
+  side is the resting order's, not yours. The price you pay to back an outcome is the ask.
+- The two tokens of a binary market are one book seen from both sides: Under's best ask 0.37 with
+  1,416 shares is exactly 1 − Over's best bid 0.63 with the same 1,416 shares. So Under backs at
+  1 / 0.37 = 2.70, not at 1 / (1 − 0.635) = 2.74 off the mid.
+- `POST /books` with `[{"token_id": …}]` returns many books in one call; an unknown token is a 404
+  with `{"error": "No orderbook exists for the requested token id"}`.
+- `GET /prices-history?market={tokenId}&interval=1w&fidelity=60` returns `{"history": [{"t", "p"}]}`
+  — a traded/mid price per bucket, not the ask, and labelled that way on the chart.
+- No rate-limit headers come back (Cloudflare throttles by delaying). The documented limits are
+  Gamma `/events` 500 and `/public-search` 350 requests per 10 s, CLOB `/book` 1,500, `/books` 500
+  and `/prices-history` 1,000 per 10 s; the client stays far below them.
+
+**Volumes before kick-off are small.** At 02:00 on a Saturday the biggest football matches of the
+weekend had $334k–440k on their 1X2, and no tennis match due to start had more than $20k — the only
+one past $200k had already finished. Most of the money arrives in the last hours and in play, so the
+default thresholds ($500k football, $200k tennis) mostly show matches that are close or live.
 
 ## Not built yet
 

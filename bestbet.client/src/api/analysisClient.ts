@@ -3,6 +3,8 @@ import type {
     AnalyzeResponse,
     ImportBetRequest,
     LiveFeedState,
+    LiveRepriceRequest,
+    LiveRepriceResult,
     Bet,
     BetStats,
     PreMatchRequest,
@@ -119,6 +121,13 @@ export const analysisClient = {
     /** What an open position is worth now. Computes; changes nothing. */
     reprice: (id: number, payload: RepriceRequest) =>
         request<RepricedBet>(`/api/bets/${id}/reprice`, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }),
+
+    /** The same, against the bet's own match as the server finds and reads it now. */
+    repriceLive: (id: number, payload: LiveRepriceRequest) =>
+        request<LiveRepriceResult>(`/api/bets/${id}/reprice/live`, {
             method: 'POST',
             body: JSON.stringify(payload),
         }),

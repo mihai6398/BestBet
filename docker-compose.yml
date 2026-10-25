@@ -19,7 +19,7 @@ services:
     ports:
       # Published on this machine only, for the server run from the IDE. Nothing outside it can reach
       # the database.
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     healthcheck:
       # $$ so compose leaves the variables for the shell inside the container to expand.
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]

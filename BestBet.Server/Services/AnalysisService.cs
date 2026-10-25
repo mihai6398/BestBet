@@ -174,8 +174,8 @@ public class AnalysisService
 
         var diagnostics = new ModelDiagnostics(
             distribution.RemainingMinutes,
-            state.CumulativeXgHome / state.MinutePlayed,
-            state.CumulativeXgAway / state.MinutePlayed,
+            adjustment.RawRateHome,
+            adjustment.RawRateAway,
             distribution.ExpectedRemainingHome,
             distribution.ExpectedRemainingAway,
             resolved.RawWinProbability,

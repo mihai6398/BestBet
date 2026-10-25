@@ -39,6 +39,12 @@ export interface MarketOdds {
     siblingOdds: number[];
 }
 
+/**
+ * Which half the clock is in. The minute alone cannot say: "45+2" and the 47th minute are both 47,
+ * and one of them has a whole half still to come.
+ */
+export type MatchPeriod = 'FirstHalf' | 'HalfTime' | 'SecondHalf';
+
 export interface LiveMatchState {
     minutePlayed: number;
     cumulativeXgHome: number;
@@ -47,6 +53,32 @@ export interface LiveMatchState {
     currentGoalsAway: number;
     /** true => every other field is ignored and a manual probability is required. */
     isPreMatch: boolean;
+    /** Null or absent: read off the minute, which is right everywhere but first-half stoppage. */
+    period?: MatchPeriod | null;
+    /** The fourth official's board at 45 and at 90. Absent until shown: the usual stoppage is counted. */
+    addedTimeFirstHalf?: number | null;
+    addedTimeSecondHalf?: number | null;
+    redCardsHome?: number;
+    redCardsAway?: number;
+    /** When the latest sending-off happened, so the xG already played a man down is not counted twice. */
+    lastRedCardMinute?: number | null;
+}
+
+/**
+ * What a provider knows about a match beyond the clock, the score and the xG.
+ *
+ * Kept as one object so the two routes in stay one shape: a pasted page has none of it and leaves
+ * it out, a fetched reading carries all of it, and everything downstream reads it from one place.
+ */
+export interface MatchContext {
+    period: MatchPeriod | null;
+    addedTimeFirstHalf: number | null;
+    addedTimeSecondHalf: number | null;
+    redCardsHome: number;
+    redCardsAway: number;
+    lastRedCardMinute: number | null;
+    /** xG over the last few minutes of play, worked out from the shot map. Null when it could not be. */
+    recent: { minutes: number; xgHome: number; xgAway: number } | null;
 }
 
 export interface ProbabilityEstimate {
@@ -77,6 +109,10 @@ export interface PaceSettings {
     recentXgHome?: number | null;
     recentXgAway?: number | null;
     recencyWeight?: number;
+    /** Count the referee's added time. Off only for the spec's flat extrapolation. */
+    stoppage?: boolean;
+    /** Correct the rates of a side playing a man down, and of its opponent. */
+    redCards?: boolean;
 }
 
 /** What the pace model did to the raw rate, and why. */
@@ -100,6 +136,10 @@ export interface PaceAdjustment {
     priorGoalsAway: number | null;
     /** True when those came from this match's pre-match model rather than the league average. */
     priorFromPreMatch: boolean;
+    /** Minutes of play the rates were measured over, first-half stoppage included once it is played. */
+    elapsedMinutes: number;
+    /** Minutes of play they are run over to the end of regulation, stoppage included. */
+    remainingMinutes: number;
 }
 
 export interface ModelDiagnostics {
@@ -251,6 +291,36 @@ export interface ProviderReading {
     readUtc: string;
     /** How old the reading already was when it left the server, which is non-zero when it was cached. */
     ageSeconds: number;
+    /** Null before kick-off, after the whistle, and in extra time. */
+    period: MatchPeriod | null;
+    addedTimeFirstHalf: number | null;
+    addedTimeSecondHalf: number | null;
+    redCardsHome: number;
+    redCardsAway: number;
+    lastRedCardMinute: number | null;
+    /** The last few minutes of play from the shot map. Null when the shots did not add up to the xG. */
+    recentWindowMinutes: number | null;
+    recentXgHome: number | null;
+    recentXgAway: number | null;
+}
+
+/** Why the server could not price a bet against its match. */
+export type LiveUnavailable = 'not-found' | 'not-started' | 'no-xg' | 'finished';
+
+/** Re-price a bet against its own match, which the server finds by the bet's team names. */
+export interface LiveRepriceRequest {
+    /** Which corrections to apply; the recent window is always the reading's own. */
+    pace?: PaceSettings;
+    preMatch?: PreMatchRates;
+}
+
+export interface LiveRepriceResult {
+    /** The match the server found, so the user can see it is the right one. Null when none was. */
+    reading: ProviderReading | null;
+    /** The state the bet was priced on. Null when it was not priced. */
+    liveState: LiveMatchState | null;
+    repriced: RepricedBet | null;
+    unavailable: LiveUnavailable | null;
 }
 
 export interface RepriceRequest {

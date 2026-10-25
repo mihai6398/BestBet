@@ -34,6 +34,14 @@ namespace BestBet.Services;
 ///   3. SCORE STATE. A side protecting a lead attacks less and a side chasing attacks more. The
 ///      effect is small early and large late, so it is scaled by how much of the match has gone.
 ///
+///   4. RED CARDS. A side down to ten scores less and concedes more for as long as the match has
+///      left — but the xG already on the clock since the card was produced that way too, so only
+///      the part of the rate built from eleven-a-side football is corrected.
+///
+/// It also settles how long the rest of the match is, because a rate is per minute and the two
+/// have to be counted in the same minutes: see <see cref="MatchClock"/> for why stoppage time is
+/// not a detail.
+///
 /// The coefficients below are calibrated heuristics, not fitted parameters. They are stated as
 /// constants with their reasoning so they can be argued with, and the whole thing can be turned off.
 /// </remarks>
@@ -67,6 +75,24 @@ public static class PaceModel
     /// </summary>
     public const double ImplausibleProjectedXg = 4.0;
 
+    /// <summary>
+    /// What a sending-off does to the side that is down to ten, as a multiple of its scoring rate.
+    /// Studies of goal timing around red cards put it near two thirds; 0.70 is the cautious end.
+    /// </summary>
+    public const double ShortHandedRateFactor = 0.70;
+
+    /// <summary>The same for the side playing against ten: about a quarter more.</summary>
+    public const double AgainstShortHandedRateFactor = 1.25;
+
+    /// <summary>Beyond two men the numbers have no data behind them, and the match is usually over.</summary>
+    public const int MaxManAdvantageConsidered = 2;
+
+    /// <summary>Seven players is the minimum a side can field, so four red cards is the most there can be.</summary>
+    private const int MaxRedCards = 4;
+
+    /// <summary>A board beyond this is not one anybody has held up.</summary>
+    private const int MaxAddedTime = 30;
+
     /// <param name="state">The match as it is now.</param>
     /// <param name="settings">Which corrections to apply.</param>
     /// <param name="prior">Each side's expected goals for the whole match from the pre-match model, used
@@ -92,6 +118,24 @@ public static class PaceModel
             throw new ArgumentOutOfRangeException(nameof(state), "Cumulative xG cannot be negative.");
         }
 
+        if (state.AddedTimeFirstHalf is < 0 or > MaxAddedTime || state.AddedTimeSecondHalf is < 0 or > MaxAddedTime)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(state), $"Added time is the number on the fourth official's board, 0 to {MaxAddedTime} minutes.");
+        }
+
+        if (state.RedCardsHome is < 0 or > MaxRedCards || state.RedCardsAway is < 0 or > MaxRedCards)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(state),
+                $"Red cards are counted per side, 0 to {MaxRedCards}: a side cannot play on with fewer than seven.");
+        }
+
+        if (state.LastRedCardMinute is < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(state), "The minute of a red card cannot be negative.");
+        }
+
         if (prior is not null && !(IsPositiveFinite(prior.HomeExpectedGoals) && IsPositiveFinite(prior.AwayExpectedGoals)))
         {
             throw new ArgumentOutOfRangeException(
@@ -99,7 +143,14 @@ public static class PaceModel
                 "The pre-match expected goals must be positive numbers for both teams.");
         }
 
-        var elapsed = (double)state.MinutePlayed;
+        // Minutes of play actually elapsed when stoppage is counted, so the rate and the time it is run
+        // over are measured in the same minutes. The spec's clock otherwise.
+        var elapsed = settings.Stoppage ? MatchClock.ElapsedMinutes(state) : state.MinutePlayed;
+        var matchMinutes = settings.Stoppage ? MatchClock.TypicalMatchMinutes : PoissonGoalModel.RegulationMinutes;
+        var remaining = settings.Stoppage
+            ? MatchClock.RemainingMinutes(state)
+            : PoissonGoalModel.RemainingMinutes(state.MinutePlayed);
+
         var rawHome = state.CumulativeXgHome / elapsed;
         var rawAway = state.CumulativeXgAway / elapsed;
 
@@ -111,19 +162,30 @@ public static class PaceModel
 
         if (settings.HasRecentWindow)
         {
-            (home, away) = ApplyRecency(state, settings, home, away, steps);
+            (home, away) = ApplyRecency(state, settings, elapsed, home, away, steps);
         }
 
         if (settings.Shrink)
         {
             priorHome = prior?.HomeExpectedGoals ?? LeagueAverageGoalsPerTeam;
             priorAway = prior?.AwayExpectedGoals ?? LeagueAverageGoalsPerTeam;
-            (home, away) = ApplyShrinkage(elapsed, home, away, priorHome.Value, priorAway.Value, prior is not null, steps);
+            (home, away) = ApplyShrinkage(
+                elapsed, matchMinutes, home, away, priorHome.Value, priorAway.Value, prior is not null, steps);
         }
 
         if (settings.ScoreState)
         {
-            (home, away) = ApplyScoreState(state, elapsed, home, away, steps);
+            (home, away) = ApplyScoreState(state, home, away, steps);
+        }
+
+        if (settings.RedCards)
+        {
+            (home, away) = ApplyRedCards(state, settings.Shrink, home, away, steps);
+        }
+
+        if (settings.Stoppage)
+        {
+            steps.Add(MatchClock.Describe(state));
         }
 
         var projectedHome = rawHome * PoissonGoalModel.RegulationMinutes;
@@ -139,6 +201,8 @@ public static class PaceModel
             steps.Count > 0,
             steps,
             BuildWarning(projectedHome, projectedAway, state.MinutePlayed, steps.Count > 0),
+            elapsed,
+            remaining,
             priorHome,
             priorAway,
             settings.Shrink && prior is not null);
@@ -151,17 +215,18 @@ public static class PaceModel
     private static (double Home, double Away) ApplyRecency(
         LiveMatchState state,
         PaceSettings settings,
+        double elapsed,
         double home,
         double away,
         List<string> steps)
     {
         var window = settings.RecentWindowMinutes!.Value;
 
-        if (window > state.MinutePlayed)
+        if (window > elapsed)
         {
             throw new ArgumentException(
                 $"The recent window ({Num(window)} min) cannot be longer than the match has been played " +
-                $"({state.MinutePlayed} min).",
+                $"({Num(elapsed)} min).",
                 nameof(settings));
         }
 
@@ -196,11 +261,14 @@ public static class PaceModel
     /// Bayesian shrinkage towards each side's prior. Written in xG rather than rate terms so the
     /// weighting by minutes played is explicit: the evidence is worth the minutes it took to gather.
     /// </summary>
+    /// <param name="matchMinutes">How many minutes a match lasts, in the same minutes as the rate: a
+    /// per-match prior is spread over these.</param>
     /// <param name="priorHome">Goals per match the home side is pulled towards.</param>
     /// <param name="priorAway">The same for the away side.</param>
     /// <param name="fromPreMatch">Whether those came from the pre-match model, for the explanation.</param>
     private static (double Home, double Away) ApplyShrinkage(
         double elapsed,
+        double matchMinutes,
         double home,
         double away,
         double priorHome,
@@ -210,8 +278,8 @@ public static class PaceModel
     {
         var denominator = elapsed + PriorStrengthMinutes;
 
-        var shrunkHome = (home * elapsed + PriorXg(priorHome)) / denominator;
-        var shrunkAway = (away * elapsed + PriorXg(priorAway)) / denominator;
+        var shrunkHome = (home * elapsed + PriorXg(priorHome, matchMinutes)) / denominator;
+        var shrunkAway = (away * elapsed + PriorXg(priorAway, matchMinutes)) / denominator;
 
         var target = fromPreMatch
             ? $"this match's pre-match expectation of {Num(priorHome)} xG home and {Num(priorAway)} away"
@@ -227,8 +295,8 @@ public static class PaceModel
     }
 
     /// <summary>A prior of so many goals per match, expressed as the xG it is worth in the blend.</summary>
-    private static double PriorXg(double goalsPerMatch)
-        => goalsPerMatch / PoissonGoalModel.RegulationMinutes * PriorStrengthMinutes;
+    private static double PriorXg(double goalsPerMatch, double matchMinutes)
+        => goalsPerMatch / matchMinutes * PriorStrengthMinutes;
 
     private static bool IsPositiveFinite(double value) => value > 0.0 && double.IsFinite(value);
 
@@ -237,7 +305,6 @@ public static class PaceModel
     /// </summary>
     private static (double Home, double Away) ApplyScoreState(
         LiveMatchState state,
-        double elapsed,
         double home,
         double away,
         List<string> steps)
@@ -249,8 +316,9 @@ public static class PaceModel
         }
 
         // A one-goal lead at minute 20 changes almost nothing; the same lead at minute 85 changes how
-        // both sides play completely.
-        var lateness = Math.Min(1.0, elapsed / PoissonGoalModel.RegulationMinutes);
+        // both sides play completely. Read off the minute on the clock, which is what the players are
+        // looking at, rather than the minutes of play elapsed.
+        var lateness = Math.Min(1.0, (double)state.MinutePlayed / PoissonGoalModel.RegulationMinutes);
         var effect = ScoreStateEffectPerGoal * lateness * Math.Abs(lead);
 
         var leaderIsHome = lead > 0;
@@ -266,6 +334,63 @@ public static class PaceModel
 
         return (adjustedHome, adjustedAway);
     }
+
+    /// <summary>
+    /// The side down to ten scores less and its opponent more, for as long as the match has left.
+    /// </summary>
+    /// <remarks>
+    /// The correction is applied to the share of the rate that was built from eleven-a-side football
+    /// only. The xG played since the card already shows the man down, and correcting it again would
+    /// count the red card twice — at minute 85, a card shown at minute 10 is mostly in the numbers
+    /// already, while one shown a minute ago is not in them at all. The prior is all eleven-a-side,
+    /// so when shrinkage ran it counts as evidence from before the card.
+    ///
+    /// Written out: the blended rate is r11 × (s + (1 − s) × f), where s is the eleven-a-side share
+    /// and f the red-card factor, and the rate the rest of the match is played at is r11 × f. A card
+    /// with no minute is taken to be the newest thing that happened, which is when it matters most.
+    /// </remarks>
+    private static (double Home, double Away) ApplyRedCards(
+        LiveMatchState state,
+        bool shrunk,
+        double home,
+        double away,
+        List<string> steps)
+    {
+        // Positive when the home side has more players on the pitch.
+        var advantage = Math.Clamp(
+            state.RedCardsAway - state.RedCardsHome, -MaxManAdvantageConsidered, MaxManAdvantageConsidered);
+        if (advantage == 0)
+        {
+            return (home, away);
+        }
+
+        var men = Math.Abs(advantage);
+        var minute = (double)state.MinutePlayed;
+        var cardMinute = Math.Clamp(state.LastRedCardMinute ?? state.MinutePlayed, 0, state.MinutePlayed);
+        var priorMinutes = shrunk ? PriorStrengthMinutes : 0.0;
+        var elevenASide = (cardMinute + priorMinutes) / (minute + priorMinutes);
+
+        var shortHanded = Unmixed(Math.Pow(ShortHandedRateFactor, men), elevenASide);
+        var opponent = Unmixed(Math.Pow(AgainstShortHandedRateFactor, men), elevenASide);
+
+        var homeShort = advantage < 0;
+        var adjustedHome = home * (homeShort ? shortHanded : opponent);
+        var adjustedAway = away * (homeShort ? opponent : shortHanded);
+
+        var shortName = homeShort ? "Home" : "Away";
+        var otherName = homeShort ? "away" : "home";
+        var since = state.LastRedCardMinute is { } at ? $" since minute {at}" : string.Empty;
+        steps.Add(
+            $"{shortName} side down to {11 - men} men{since}: its rate cut {Pct(1 - shortHanded)} and the " +
+            $"{otherName} side's raised {Pct(opponent - 1)}. A sending-off is worth about a third off one " +
+            "side's scoring and a quarter on the other's; what the xG since the card already shows is not counted twice.");
+
+        return (adjustedHome, adjustedAway);
+    }
+
+    /// <summary>The forward multiple, given a rate that already carries the factor on part of its evidence.</summary>
+    private static double Unmixed(double factor, double elevenASideShare)
+        => factor / (elevenASideShare + (1 - elevenASideShare) * factor);
 
     private static string? BuildWarning(double projectedHome, double projectedAway, int minute, bool adjusted)
     {
