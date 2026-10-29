@@ -113,6 +113,10 @@ export interface PaceSettings {
     stoppage?: boolean;
     /** Correct the rates of a side playing a man down, and of its opponent. */
     redCards?: boolean;
+    /** Weigh the minutes by when they fall: goals come slower early and faster late. */
+    timeProfile?: boolean;
+    /** Treat the rate as an estimate with a spread, which fattens both tails of the goal count. */
+    rateUncertainty?: boolean;
 }
 
 /** What the pace model did to the raw rate, and why. */
@@ -140,6 +144,10 @@ export interface PaceAdjustment {
     elapsedMinutes: number;
     /** Minutes of play they are run over to the end of regulation, stoppage included. */
     remainingMinutes: number;
+    /** Shape of the spread around the rates; null when they were taken as exact. */
+    rateShape: number | null;
+    /** Share of the rate that came from this match rather than from the prior, 0..1. */
+    evidenceWeight: number;
 }
 
 export interface ModelDiagnostics {
@@ -188,6 +196,8 @@ export interface AnalyzeRequest {
     referenceSource?: string;
     /** Expected goals from the pre-match model. Prices a match that has not started. */
     preMatch?: PreMatchRates;
+    /** How old the live reading in the form is, when a feed filled it. Only the timing plan reads it. */
+    feedAgeSeconds?: number;
 }
 
 /** One outcome on a prediction market, priced both as a probability and as decimal odds. */
@@ -340,6 +350,59 @@ export interface AnalyzeResponse {
     model: ModelDiagnostics | null;
     disclaimer: string;
     reference: ReferenceLine | null;
+    /** Whether to take a live price now or later. Null pre-match. */
+    timing: TimingAdvice | null;
+}
+
+/** What the timing plan recommends doing with a live price. */
+export type TimingAction = 'BetNow' | 'Wait' | 'Skip';
+
+/** One warning about the live data. Which number `value` and `reference` hold is fixed by the code. */
+export interface TimingReason {
+    code: string;
+    value: number | null;
+    reference: number | null;
+}
+
+export type TimingScenarioCode = 'no-goal' | 'home-goal' | 'away-goal' | 'more-goals';
+
+/** One kind of thing that can happen before a later moment, and what the bet looks like then. */
+export interface TimingScenario {
+    code: TimingScenarioCode;
+    probability: number;
+    modelProbability: number;
+    marketProbability: number;
+    /** The price the bookmaker would most likely show. Null when there would be none worth taking. */
+    odds: number | null;
+    /** How much of this scenario ends in a bet worth taking, 0..1. */
+    betShare: number;
+    credibility: number;
+}
+
+/** One moment the bet could be taken at — now, or a few minutes of play from now. */
+export interface TimingOption {
+    minutesFromNow: number;
+    atMinute: number;
+    /** Expected profit of "wait until then, bet only if still worth it", as a share of the bankroll. */
+    expectedValue: number;
+    betProbability: number;
+    expectedOdds: number | null;
+    stakeFraction: number;
+    scenarios: TimingScenario[];
+}
+
+/** The timing plan for a live bet. */
+export interface TimingAdvice {
+    action: TimingAction;
+    waitMinutes: number | null;
+    reasons: TimingReason[];
+    /** How far the model is believed over the market right now, 0..1. */
+    credibility: number;
+    modelRemainingGoals: number;
+    marketRemainingGoals: number | null;
+    leaguePrior: boolean;
+    /** Now first, then each later moment that leaves enough match to bet on. */
+    options: TimingOption[];
 }
 
 export interface SaveBetRequest {

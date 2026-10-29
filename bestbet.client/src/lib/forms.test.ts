@@ -122,3 +122,37 @@ describe('sending the pre-match model', () => {
         expect(request.preMatch).toBeUndefined();
     });
 });
+
+describe('telling the timing plan how old the reading is', () => {
+    it('sends the age of a live reading, rounded', () => {
+        const request = buildAnalyzeRequest(totals(), live(), 100, defaultPaceForm(), null, null, 42.6);
+
+        expect(request.feedAgeSeconds).toBe(43);
+    });
+
+    it('sends nothing for a reading that was typed in', () => {
+        expect(buildAnalyzeRequest(totals(), live(), 100).feedAgeSeconds).toBeUndefined();
+    });
+
+    it('sends nothing before kick-off, where there is no reading to age', () => {
+        const prematch = { ...live(), isLive: false, manualOwnProbability: '55' };
+        const request = buildAnalyzeRequest(totals(), prematch, 100, defaultPaceForm(), null, null, 42);
+
+        expect(request.feedAgeSeconds).toBeUndefined();
+    });
+});
+
+describe('switching the corrections off', () => {
+    it('turns off the tempo and the spread along with the rest, so off means the spec', () => {
+        const request = buildAnalyzeRequest(totals(), live(), 100, { ...defaultPaceForm(), corrected: false });
+
+        expect(request.pace).toEqual({
+            shrink: false,
+            scoreState: false,
+            stoppage: false,
+            redCards: false,
+            timeProfile: false,
+            rateUncertainty: false,
+        });
+    });
+});

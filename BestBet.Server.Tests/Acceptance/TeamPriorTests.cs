@@ -1,4 +1,4 @@
-using BestBet.Contracts;
+﻿using BestBet.Contracts;
 using BestBet.Domain;
 using BestBet.Services;
 
@@ -31,7 +31,7 @@ public class TeamPriorTests
     private static readonly PreMatchRates DefensiveFixture = new(0.90, 0.80);
 
     // Shrinkage alone, on the spec's clock: these pin where the prior pulls the rate, nothing else.
-    private static PaceSettings Shrinkage() => new(Shrink: true, ScoreState: false, Stoppage: false, RedCards: false);
+    private static PaceSettings Shrinkage() => PaceSettings.Flat with { Shrink = true };
 
     private static AnalyzeRequest Over35(LiveMatchState state, PreMatchRates? preMatch) => new(
         new MarketOdds(MarketKind.TotalGoals, "Peste 3.5", 2.10, [1.75]),

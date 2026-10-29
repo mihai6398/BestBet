@@ -1,6 +1,7 @@
 import type { AnalyzeResponse } from '../types/domain';
 import { money, percent, percentagePoints, signedPercent } from '../lib/format';
 import { capReasonLabel, methodLabel, useLocale, useT } from '../lib/i18n';
+import { TimingPanel } from './TimingPanel';
 import { VerdictBadge } from './VerdictBadge';
 
 /** A per-minute rate is unreadable; the same rate over a full match is the number people know. */
@@ -17,9 +18,11 @@ interface Props {
      * the failure a live feed introduces, so it says so itself rather than ageing quietly.
      */
     overtakenAtMinute?: string | null;
+    /** The bankroll the analysis was sized on, so the timing plan can say its profit in money. */
+    bankroll?: number;
 }
 
-export function EdgeResultCard({ result, onSave, saving, saved, overtakenAtMinute = null }: Props) {
+export function EdgeResultCard({ result, onSave, saving, saved, overtakenAtMinute = null, bankroll = 0 }: Props) {
     const t = useT();
     const locale = useLocale();
     const { edge, stake, model, reference } = result;
@@ -99,6 +102,10 @@ export function EdgeResultCard({ result, onSave, saving, saved, overtakenAtMinut
             )}
 
             <p className="verdict-reason">{result.verdictReason}</p>
+
+            {/* Straight after the verdict, because it answers the next question about it: the verdict
+                says whether there is an edge at this price, this says whether now is when to take it. */}
+            {result.timing && <TimingPanel timing={result.timing} bankroll={bankroll} />}
 
             {model?.pace.warning && <p className="warning">{model.pace.warning}</p>}
 

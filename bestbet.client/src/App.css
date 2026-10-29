@@ -1500,3 +1500,91 @@ button.danger {
         grid-template-columns: 1fr auto;
     }
 }
+
+/* --- Timing plan ---------------------------------------------------------- */
+
+.timing-panel {
+    margin-top: 0.9rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    background: var(--well);
+}
+
+.timing-now {
+    background: var(--good-bg);
+    color: var(--good);
+    border-color: var(--good);
+}
+
+.timing-wait {
+    background: var(--warn-bg);
+    color: var(--warn);
+    border-color: var(--warn);
+}
+
+.timing-skip {
+    background: var(--bad-bg);
+    color: var(--bad);
+    border-color: var(--bad);
+}
+
+.timing-summary {
+    margin: 0 0 0.5rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.timing-reasons {
+    margin: 0 0 0.6rem;
+    padding-left: 1.15rem;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--warn);
+}
+
+.timing-reasons li + li {
+    margin-top: 0.3rem;
+}
+
+.timing-table {
+    width: 100%;
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+}
+
+.timing-table th,
+.timing-table td {
+    padding: 0.3rem 0.45rem;
+}
+
+.timing-table .numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.timing-best td {
+    font-weight: 600;
+}
+
+.timing-scenarios {
+    margin-top: 0.6rem;
+}
+
+.timing-scenarios-title {
+    margin: 0 0 0.3rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.timing-scenarios ul {
+    margin: 0;
+    padding-left: 1.15rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--muted);
+}
+
+.timing-moment {
+    white-space: nowrap;
+}

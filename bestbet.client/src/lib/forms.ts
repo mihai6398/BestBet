@@ -189,6 +189,7 @@ export function buildAnalyzeRequest(
     pace: PaceFormState = defaultPaceForm(),
     reference: ReferenceState | null = null,
     preMatch: PreMatchRates | null = null,
+    feedAgeSeconds: number | null = null,
 ): AnalyzeRequest {
     const config = marketKindConfig(odds.kind);
 
@@ -222,6 +223,8 @@ export function buildAnalyzeRequest(
               }
             : undefined,
         referenceSource: reference?.source,
+        // Only for a live form a feed is filling: a typed-in reading has no age worth reporting.
+        feedAgeSeconds: live.isLive && feedAgeSeconds !== null ? Math.round(feedAgeSeconds) : undefined,
     };
 }
 
@@ -234,7 +237,14 @@ export function buildAnalyzeRequest(
  */
 export function buildPaceSettings(pace: PaceFormState): PaceSettings {
     if (!pace.corrected) {
-        return { shrink: false, scoreState: false, stoppage: false, redCards: false };
+        return {
+            shrink: false,
+            scoreState: false,
+            stoppage: false,
+            redCards: false,
+            timeProfile: false,
+            rateUncertainty: false,
+        };
     }
 
     const window = Number(pace.recentWindowMinutes);

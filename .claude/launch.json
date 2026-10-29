@@ -7,6 +7,13 @@
       "runtimeArgs": ["--prefix", "bestbet.client", "run", "dev"],
       "port": 5173,
       "url": "https://localhost:5173"
+    },
+    {
+      "name": "bestbet-server-preview",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "C:\\Users\\mihai\\AppData\\Local\\Temp\\claude\\C--Documents-GitHub-BestBett\\1d9bdf45-0b96-4751-8c10-bef5af4ac40e\\scratchpad\\run-preview-server.cmd"],
+      "port": 7243,
+      "url": "https://localhost:7243"
     }
   ]
 }

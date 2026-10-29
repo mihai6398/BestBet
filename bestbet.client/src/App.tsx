@@ -265,7 +265,19 @@ function App({ active = true }: AppProps) {
         try {
             setResult(
                 await analysisClient.analyze(
-                    buildAnalyzeRequest(odds, live, bankroll, pace, reference, preMatch),
+                    buildAnalyzeRequest(
+                        odds,
+                        live,
+                        bankroll,
+                        pace,
+                        reference,
+                        preMatch,
+                        // The timing plan believes an old reading less, so it is told how old the one
+                        // in the form is — but only when a feed actually wrote it there.
+                        watching && readingKey !== null && appliedReading.current === readingKey
+                            ? readingAge
+                            : null,
+                    ),
                 ),
             );
         } catch (e) {
@@ -961,6 +973,7 @@ function App({ active = true }: AppProps) {
                     {result ? (
                         <EdgeResultCard
                             result={result}
+                            bankroll={bankroll}
                             onSave={saveBet}
                             saving={saveDraft !== null}
                             saved={savedId !== null}

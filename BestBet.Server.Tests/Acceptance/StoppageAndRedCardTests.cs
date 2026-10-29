@@ -1,4 +1,4 @@
-using BestBet.Contracts;
+﻿using BestBet.Contracts;
 using BestBet.Domain;
 using BestBet.Services;
 
@@ -12,9 +12,9 @@ public class StoppageAndRedCardTests
 {
     private readonly AnalysisService _service = new();
 
-    private static PaceSettings StoppageOnly() => new(Shrink: false, ScoreState: false, Stoppage: true, RedCards: false);
+    private static PaceSettings StoppageOnly() => PaceSettings.Flat with { Stoppage = true };
 
-    private static PaceSettings RedCardsOnly() => new(Shrink: false, ScoreState: false, Stoppage: false, RedCards: true);
+    private static PaceSettings RedCardsOnly() => PaceSettings.Flat with { RedCards = true };
 
     private static AnalyzeRequest Over(double line, LiveMatchState state, PaceSettings? pace = null) => new(
         new MarketOdds(MarketKind.TotalGoals, $"Peste {line}", 2.50, [1.50]),
@@ -33,7 +33,27 @@ public class StoppageAndRedCardTests
         // would quietly add stoppage on top of numbers that already contain it.
         var perMinute = PaceModel.LeagueAverageGoalsPerTeam / MatchClock.TypicalMatchMinutes;
         var state = new LiveMatchState(20, perMinute * 20, perMinute * 20, 0, 0, false);
-        var settings = new PaceSettings(Shrink: true, ScoreState: false, Stoppage: true, RedCards: false);
+        var settings = PaceSettings.Flat with { Shrink = true, Stoppage = true };
+
+        var distribution = PoissonGoalModel.ExtrapolateRemainingGoals(state, settings);
+
+        Assert.Equal(
+            PaceModel.LeagueAverageGoalsPerTeam,
+            state.CumulativeXgHome + distribution.ExpectedRemainingHome,
+            10);
+    }
+
+    [Fact]
+    public void With_the_tempo_counted_a_league_average_match_still_expects_the_league_average()
+    {
+        // The same check for the tempo. "At the league average" now means the xG a typical match
+        // has produced by minute 20, which is less than a flat share of it because the opening is
+        // the quiet part. A match exactly on that line must be left exactly on it: the opening read
+        // up and the rest run hotter, and a per-match number neither gained nor lost.
+        var matchMinutes = MatchClock.TypicalMatchMinutes;
+        var soFar = PaceModel.LeagueAverageGoalsPerTeam * MatchTempo.Cumulative(20, matchMinutes) / matchMinutes;
+        var state = new LiveMatchState(20, soFar, soFar, 0, 0, false);
+        var settings = PaceSettings.Flat with { Shrink = true, Stoppage = true, TimeProfile = true };
 
         var distribution = PoissonGoalModel.ExtrapolateRemainingGoals(state, settings);
 

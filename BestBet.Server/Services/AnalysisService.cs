@@ -66,9 +66,10 @@ public class AnalysisService
                 ResolveSelection(request),
                 request.LiveState!,
                 request.Pace ?? PaceSettings.Default,
+                request.PreMatch,
                 diagnostics.Pace,
                 edge,
-                verdict,
+                market.DecimalOdds,
                 request.FeedAgeSeconds)
             : null;
 

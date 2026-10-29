@@ -1,6 +1,14 @@
 import { createContext, useContext } from 'react';
 import { DISCLAIMER } from '../types/domain';
-import type { MarketKind, MarketSelection, BetStatus, LiveUnavailable, Verdict } from '../types/domain';
+import type {
+    MarketKind,
+    MarketSelection,
+    BetStatus,
+    LiveUnavailable,
+    TimingAction,
+    TimingScenarioCode,
+    Verdict,
+} from '../types/domain';
 import type { ParseIssue } from './oddsPaste';
 
 /**
@@ -823,6 +831,102 @@ const ro = {
             'Deschide formularul cu cota, probabilitatea și avantajul deja completate; adaugi miza ' +
             'pusă, casa și competiția. Cota de intrare rămâne, ca să afli mai târziu dacă procesul ' +
             'chiar bate piața.',
+    },
+
+    /**
+     * The timing plan: bet now, later, or not at all. The reasons arrive as codes with their numbers,
+     * so each is worded here rather than sent over in English.
+     */
+    timing: {
+        title: 'Strategie de moment',
+        action: {
+            BetNow: 'Pariază acum',
+            Wait: 'Mai așteaptă',
+            Skip: 'Nu merită',
+        } as Record<TimingAction, string>,
+        betNow:
+            'Prețul de acum valorează cel puțin cât orice moment din următoarele 15 minute de joc, ' +
+            'și nimic din datele live nu cere să aștepți.',
+        waitFor: (minutes: number, atMinute: number) =>
+            `Revino peste ${minutes} minute de joc, pe la minutul ${atMinute}: simularea arată că atunci ` +
+            'pariul valorează mai mult decât acum. Pariezi doar dacă mai merită — analizează din nou atunci.',
+        waitWarnings:
+            'Nu paria încă: avertismentele de mai jos spun că cifra nu e de încredere chiar acum. ' +
+            'Lămurește-le, apoi analizează din nou.',
+        skip:
+            'Nici acum, nici în următoarele 15 minute de joc nu se vede valoare în care să poți avea ' +
+            'încredere: cu modelul crezut doar cât îl susține meciul, avantajul nu acoperă marja casei.',
+        credibility: (value: string) =>
+            `Modelul e crezut în fața pieței în proporție de ${value} — partea din estimare construită ` +
+            'din acest meci. Restul (media de ligă sau cifrele pre-meci) piața îl știe mai bine.',
+        goals: (model: string, market: string) =>
+            `Până la final, modelul se așteaptă la ${model} goluri, piața la ${market}.`,
+        leaguePrior:
+            'Ritmul e tras spre un meci mediu de ligă. Cifrele pre-meci ale echipelor apropie modelul ' +
+            'de ce știe piața și ridică încrederea în el.',
+        reasons: {
+            'edge-too-large': (value: number) =>
+                `Diferența față de piață e de ${value.toFixed(1)}pp — prea mare ca să fie adevărată live. ` +
+                'Aproape mereu piața știe ceva ce datele tale nu arată încă: un gol încă neintrat în xG, un ' +
+                'penalty, un roșu, sau doar că echipele astea marchează mai mult decât un meci mediu. ' +
+                'Reîmprospătează datele și uită-te la meci.',
+            'stale-data': (value: number) =>
+                `Datele meciului au ${value.toFixed(0)} de secunde, iar cota e live. Între timp se poate să ` +
+                'se fi marcat. Reîmprospătează înainte să pariezi.',
+            'hot-start': (value: number, reference: number) =>
+                `Ritmul de până acum ar duce o echipă la ${value.toFixed(2)} xG pe meci — aproape niciun meci ` +
+                `nu trece de ${reference.toFixed(0)}. Un Peste care are nevoie ca ritmul ăsta să țină pariază ` +
+                'pe o presupunere; în zece minute se vede dacă ține.',
+            'early-league-prior': (value: number, reference: number) =>
+                `Doar ${(value * 100).toFixed(0)}% din estimare vine din acest meci; restul e un meci mediu de ` +
+                `ligă, iar piața știe cine joacă. Încarcă cifrele pre-meci sau așteaptă până pe la minutul ` +
+                `${reference.toFixed(0)}.`,
+            'early-small-sample': (value: number, reference: number) =>
+                `Ritmul e citit din doar ${value.toFixed(0)} minute, fără nicio bază — câteva șuturi. ` +
+                `Așteaptă măcar până la minutul ${reference.toFixed(0)}.`,
+            'heating-up': (value: number, reference: number) =>
+                `Meciul se încinge: ultimele minute merg cu ${value.toFixed(2)} xG la 90, față de ` +
+                `${reference.toFixed(2)} pe tot meciul. Un Sub e în pericol, iar piața citește asta mai ` +
+                'repede decât media pe care se sprijină modelul.',
+            'cooling-down': (value: number, reference: number) =>
+                `Meciul s-a stins: ultimele minute merg cu ${value.toFixed(2)} xG la 90, față de ` +
+                `${reference.toFixed(2)} pe tot meciul. Dacă rămâne așa, cota la Peste crește — merită ` +
+                'așteptat.',
+        } as Record<string, (value: number, reference: number) => string>,
+        moment: 'Moment',
+        now: (minute: number) => `Acum · ${minute}'`,
+        later: (minutes: number, minute: number) => `+${minutes} · ${minute}'`,
+        expectedProfit: 'Profit',
+        stillWorth: 'Mai merită',
+        likelyOdds: 'Cotă',
+        stake: 'Miză',
+        best: 'cel mai bun moment',
+        columns:
+            'Profit: câștigul așteptat din „aștept până atunci și pariez doar dacă mai merită”. ' +
+            'Mai merită: șansa ca pariul să aibă încă valoare atunci. Cotă și miză: cele probabile, dacă pariezi.',
+        scenariosTitle: (minutes: number) => `Ce se poate întâmpla în următoarele ${minutes} minute`,
+        scenario: {
+            'no-goal': 'Fără gol',
+            'home-goal': 'Gol gazde',
+            'away-goal': 'Gol oaspeți',
+            'more-goals': 'Mai multe goluri',
+        } as Record<TimingScenarioCode, string>,
+        scenarioLine: (chance: string, model: string, market: string) =>
+            `${chance} — modelul ${model}, piața ${market}`,
+        scenarioOdds: (odds: string) => `cota ~${odds}`,
+        scenarioBet: 'merită',
+        scenarioNoBet: 'nu mai merită',
+        scenarioClosed: 'pariul e practic decis',
+        how: 'Cum se calculează',
+        howText:
+            'Când modelul și piața nu sunt de acord, strategia nu presupune că modelul are dreptate. ' +
+            'Îl crede doar cât din estimarea lui vine din acest meci, iar restul îl ia de la piață. ' +
+            'Apoi simulează următoarele 5, 10 și 15 minute de joc — fără gol, gol pentru fiecare echipă, ' +
+            'mai multe goluri — fiecare cântărit după ambele păreri. În fiecare scenariu recalculează ' +
+            'șansa modelului, a pieței și cota probabilă, iar golurile care vin sau nu vin arată care ' +
+            'părere era mai aproape (regula lui Bayes). Fiecare moment primește profitul așteptat din ' +
+            '„aștept până atunci și pariez doar dacă mai merită, cu miza Kelly”, și câștigă cel mai bun. ' +
+            'Verdictul și miza de mai sus rămân neschimbate.',
     },
 
     /** The short codes the server returns for how a stake was sized. Anything else is shown raw. */
@@ -1861,6 +1965,98 @@ const en: Dictionary = {
             'Opens the form with the odds, probability and edge already filled in; you add the stake ' +
             'placed, the bookmaker and the competition. The entry price is kept so you can find out ' +
             'later whether this process actually beats the market.',
+    },
+
+    timing: {
+        title: 'Timing plan',
+        action: {
+            BetNow: 'Bet now',
+            Wait: 'Wait',
+            Skip: 'Not worth it',
+        } as Record<TimingAction, string>,
+        betNow:
+            'The price now is worth at least as much as any moment in the next 15 minutes of play, and ' +
+            'nothing in the live data says to wait.',
+        waitFor: (minutes: number, atMinute: number) =>
+            `Come back in ${minutes} minutes of play, around minute ${atMinute}: the simulation says the bet ` +
+            'is worth more then than now. Bet only if it still is — analyse again then.',
+        waitWarnings:
+            'Do not bet yet: the warnings below say the number cannot be trusted right now. Clear them ' +
+            'up, then analyse again.',
+        skip:
+            'Neither now nor in the next 15 minutes of play is there value you can trust: with the ' +
+            'model believed only as far as this match supports it, the edge does not cover the margin.',
+        credibility: (value: string) =>
+            `The model is believed over the market to ${value} — the part of its estimate built from this ` +
+            'match. The rest (a league average or the pre-match numbers) the market knows better.',
+        goals: (model: string, market: string) =>
+            `To the end, the model expects ${model} goals and the market ${market}.`,
+        leaguePrior:
+            'The pace is pulled towards a league-average match. The teams\u2019 pre-match numbers bring the ' +
+            'model closer to what the market knows, and raise how far it is believed.',
+        reasons: {
+            'edge-too-large': (value: number) =>
+                `The gap to the market is ${value.toFixed(1)}pp — too big to be true live. The market nearly ` +
+                'always knows something your data does not show yet: a goal not yet in the xG, a penalty, a ' +
+                'red card, or just that these teams score more than an average match. Refresh the data and ' +
+                'look at the match.',
+            'stale-data': (value: number) =>
+                `The match data is ${value.toFixed(0)} seconds old and the price is live. Someone may have ` +
+                'scored since. Refresh before betting.',
+            'hot-start': (value: number, reference: number) =>
+                `The pace so far would take one side to ${value.toFixed(2)} xG for the match — almost no match ` +
+                `passes ${reference.toFixed(0)}. An Over that needs that pace to hold is a bet on a guess; ten ` +
+                'minutes will show whether it holds.',
+            'early-league-prior': (value: number, reference: number) =>
+                `Only ${(value * 100).toFixed(0)}% of the estimate comes from this match; the rest is a ` +
+                'league-average game, and the market knows who is playing. Load the pre-match numbers or ' +
+                `wait until about minute ${reference.toFixed(0)}.`,
+            'early-small-sample': (value: number, reference: number) =>
+                `The pace is read off only ${value.toFixed(0)} minutes with no prior — a few shots. Wait ` +
+                `until at least minute ${reference.toFixed(0)}.`,
+            'heating-up': (value: number, reference: number) =>
+                `The match is heating up: the recent minutes run at ${value.toFixed(2)} xG per 90 against ` +
+                `${reference.toFixed(2)} over the match. An Under is in danger, and the market reads this ` +
+                'faster than the average the model leans on.',
+            'cooling-down': (value: number, reference: number) =>
+                `The match has died down: the recent minutes run at ${value.toFixed(2)} xG per 90 against ` +
+                `${reference.toFixed(2)} over the match. If it stays this way the Over price drifts out — ` +
+                'worth waiting for.',
+        } as Record<string, (value: number, reference: number) => string>,
+        moment: 'Moment',
+        now: (minute: number) => `Now · ${minute}'`,
+        later: (minutes: number, minute: number) => `+${minutes} · ${minute}'`,
+        expectedProfit: 'Profit',
+        stillWorth: 'Still worth it',
+        likelyOdds: 'Odds',
+        stake: 'Stake',
+        best: 'best moment',
+        columns:
+            'Profit: what “wait until then and bet only if it is still worth it” is expected to make. ' +
+            'Still worth it: the chance the bet still has value then. Odds and stake: the likely ones, if you bet.',
+        scenariosTitle: (minutes: number) => `What can happen in the next ${minutes} minutes`,
+        scenario: {
+            'no-goal': 'No goal',
+            'home-goal': 'Home goal',
+            'away-goal': 'Away goal',
+            'more-goals': 'More goals',
+        } as Record<TimingScenarioCode, string>,
+        scenarioLine: (chance: string, model: string, market: string) =>
+            `${chance} — model ${model}, market ${market}`,
+        scenarioOdds: (odds: string) => `odds ~${odds}`,
+        scenarioBet: 'worth it',
+        scenarioNoBet: 'no longer worth it',
+        scenarioClosed: 'the bet is as good as settled',
+        how: 'How it is worked out',
+        howText:
+            'When the model and the market disagree, the plan does not assume the model is right. It ' +
+            'believes it only as far as its estimate comes from this match, and takes the rest from the ' +
+            'market. Then it simulates the next 5, 10 and 15 minutes of play — no goal, a goal for either ' +
+            'side, more goals — each weighed under both views. In each scenario it prices the bet again for ' +
+            'the model, the market and the likely odds, and the goals that do or do not come show which view ' +
+            'was nearer (Bayes\u2019 rule). Each moment is valued as \u201cwait until then and bet only if it ' +
+            'is still worth it, at the Kelly stake\u201d, and the best one wins. The verdict and stake above ' +
+            'are unchanged.',
     },
 
     capReason: {
