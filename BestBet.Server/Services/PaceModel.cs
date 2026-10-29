@@ -38,6 +38,16 @@ namespace BestBet.Services;
 ///      left — but the xG already on the clock since the card was produced that way too, so only
 ///      the part of the rate built from eleven-a-side football is corrected.
 ///
+///   5. TEMPO. Goals come slower early and faster late, so the minutes played and the minutes left
+///      are not worth the same. Read flat, the opening of a match under-states the rest of it — a
+///      lean towards the Under that is largest exactly when the model is most sure of one. See
+///      <see cref="MatchTempo"/>.
+///
+///   6. RATE UNCERTAINTY. Everything above produces a best guess at the rate, not the rate. A
+///      Poisson priced off a guess as if it were exact has tails that are too thin, and the thin
+///      tail is the one an Under 3.5 loses in. The goal count is spread accordingly — see
+///      <see cref="RateShape"/>.
+///
 /// It also settles how long the rest of the match is, because a rate is per minute and the two
 /// have to be counted in the same minutes: see <see cref="MatchClock"/> for why stoppage time is
 /// not a detail.
@@ -86,6 +96,22 @@ public static class PaceModel
 
     /// <summary>Beyond two men the numbers have no data behind them, and the match is usually over.</summary>
     public const int MaxManAdvantageConsidered = 2;
+
+    /// <summary>
+    /// How sure the model is of each side's rate, as the shape of a gamma spread around it: the
+    /// spread is one over its square root, so 10 is about ±32%.
+    /// </summary>
+    /// <remarks>
+    /// The rate is uncertain for reasons more minutes do not fix — a substitution, a change of plan,
+    /// a match that opens up after a goal — so the shape is fixed rather than growing with the clock.
+    /// It still fades on its own as the match runs out: the spread is a share of the goals left, and
+    /// late on there are too few of those for it to move anything.
+    ///
+    /// At 10 a whole match between two average sides comes out about 13% more spread than a plain
+    /// Poisson, which is at the wide end of what full-match totals show against a sharp pre-match
+    /// price. Wide on purpose: this model's rate is a much rougher estimate than that price is.
+    /// </remarks>
+    public const double RateShape = 10.0;
 
     /// <summary>Seven players is the minimum a side can field, so four red cards is the most there can be.</summary>
     private const int MaxRedCards = 4;
@@ -160,17 +186,29 @@ public static class PaceModel
         double? priorHome = null;
         double? priorAway = null;
 
+        // With the tempo counted, everything from here to the last step is per AVERAGE minute: the
+        // minutes played were quieter than that, so what they produced is read up before it is
+        // blended with anything measured per match.
+        var opening = settings.TimeProfile ? MatchTempo.Intensity(0.0, elapsed, matchMinutes) : 1.0;
+        home /= opening;
+        away /= opening;
+
         if (settings.HasRecentWindow)
         {
-            (home, away) = ApplyRecency(state, settings, elapsed, home, away, steps);
+            (home, away) = ApplyRecency(state, settings, elapsed, matchMinutes, home, away, steps);
         }
+
+        // What the minutes played are worth as evidence. With the tempo counted, an opening half hour
+        // carries fewer average minutes' worth of football than its length, so it outweighs the prior
+        // a little later — the same correction, seen from the side of how much it proves.
+        var evidenceMinutes = settings.TimeProfile ? MatchTempo.Cumulative(elapsed, matchMinutes) : elapsed;
 
         if (settings.Shrink)
         {
             priorHome = prior?.HomeExpectedGoals ?? LeagueAverageGoalsPerTeam;
             priorAway = prior?.AwayExpectedGoals ?? LeagueAverageGoalsPerTeam;
             (home, away) = ApplyShrinkage(
-                elapsed, matchMinutes, home, away, priorHome.Value, priorAway.Value, prior is not null, steps);
+                evidenceMinutes, matchMinutes, home, away, priorHome.Value, priorAway.Value, prior is not null, steps);
         }
 
         if (settings.ScoreState)
@@ -183,9 +221,22 @@ public static class PaceModel
             (home, away) = ApplyRedCards(state, settings.Shrink, home, away, steps);
         }
 
+        if (settings.TimeProfile)
+        {
+            (home, away) = ApplyTempo(elapsed, remaining, matchMinutes, opening, home, away, steps);
+        }
+
         if (settings.Stoppage)
         {
             steps.Add(MatchClock.Describe(state));
+        }
+
+        if (settings.RateUncertainty)
+        {
+            steps.Add(
+                $"Rate treated as an estimate, not a fact: a spread of about ±{Pct(1 / Math.Sqrt(RateShape))} " +
+                "around it, so a run of goals and a long drought both come out a little likelier than a " +
+                "plain Poisson would say.");
         }
 
         var projectedHome = rawHome * PoissonGoalModel.RegulationMinutes;
@@ -205,7 +256,37 @@ public static class PaceModel
             remaining,
             priorHome,
             priorAway,
-            settings.Shrink && prior is not null);
+            settings.Shrink && prior is not null,
+            settings.RateUncertainty ? RateShape : null,
+            settings.Shrink ? evidenceMinutes / (evidenceMinutes + PriorStrengthMinutes) : 1.0);
+    }
+
+    /// <summary>
+    /// Runs the rate over the rest of the match at the tempo of the minutes still to come.
+    /// </summary>
+    /// <remarks>
+    /// The rate arrives per average minute. The minutes left are livelier than that, so it is raised
+    /// by how much livelier, and handed on per minute of the clock again — which is what the goal
+    /// distribution multiplies by the minutes remaining.
+    /// </remarks>
+    private static (double Home, double Away) ApplyTempo(
+        double elapsed,
+        double remaining,
+        double matchMinutes,
+        double opening,
+        double home,
+        double away,
+        List<string> steps)
+    {
+        var closing = MatchTempo.Intensity(elapsed, elapsed + remaining, matchMinutes);
+
+        steps.Add(
+            $"Tempo counted: goals come faster as a match goes on. The {Num(elapsed)} minutes played ran at " +
+            $"{Pct(opening)} of an average minute, so what they produced is read up {Pct(1 / opening - 1)}; " +
+            $"the {Num(remaining)} left run at {Pct(closing)}: rate {Rate(home)} → {Rate(home * closing)} home, " +
+            $"{Rate(away)} → {Rate(away * closing)} away.");
+
+        return (home * closing, away * closing);
     }
 
     /// <summary>
@@ -216,6 +297,7 @@ public static class PaceModel
         LiveMatchState state,
         PaceSettings settings,
         double elapsed,
+        double matchMinutes,
         double home,
         double away,
         List<string> steps)
@@ -244,8 +326,12 @@ public static class PaceModel
         }
 
         var weight = Math.Clamp(settings.RecencyWeight, 0.0, 1.0);
-        var recentHome = settings.RecentXgHome!.Value / window;
-        var recentAway = settings.RecentXgAway!.Value / window;
+
+        // Per average minute, like the rate it is blended into: the last twenty minutes of a match are
+        // its liveliest, and a window read flat would call a normal finish a game opening up.
+        var tempo = settings.TimeProfile ? MatchTempo.Intensity(elapsed - window, elapsed, matchMinutes) : 1.0;
+        var recentHome = settings.RecentXgHome!.Value / window / tempo;
+        var recentAway = settings.RecentXgAway!.Value / window / tempo;
 
         var blendedHome = weight * recentHome + (1 - weight) * home;
         var blendedAway = weight * recentAway + (1 - weight) * away;
@@ -261,6 +347,8 @@ public static class PaceModel
     /// Bayesian shrinkage towards each side's prior. Written in xG rather than rate terms so the
     /// weighting by minutes played is explicit: the evidence is worth the minutes it took to gather.
     /// </summary>
+    /// <param name="elapsed">Those minutes — in average minutes when the tempo is counted, so they are
+    /// measured in the same units as the rate they multiply.</param>
     /// <param name="matchMinutes">How many minutes a match lasts, in the same minutes as the rate: a
     /// per-match prior is spread over these.</param>
     /// <param name="priorHome">Goals per match the home side is pulled towards.</param>

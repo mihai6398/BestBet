@@ -27,6 +27,9 @@ namespace BestBet.Contracts;
 /// that has not started, it replaces <paramref name="ManualOwnProbability"/>: the probability is
 /// priced off these rates for whichever market and side the request names. On a live match it is the
 /// target the pace is shrunk towards, in place of the league average.</param>
+/// <param name="FeedAgeSeconds">How old the live reading in the form was when this was asked for, when
+/// it came from a feed rather than being typed in. Only the timing advice reads it: a price on the
+/// screen is live, and a reading a minute old may be missing whatever moved it.</param>
 public record AnalyzeRequest(
     MarketOdds Market,
     LiveMatchState? LiveState,
@@ -37,7 +40,8 @@ public record AnalyzeRequest(
     PaceSettings? Pace = null,
     MarketOdds? ReferenceMarket = null,
     string? ReferenceSource = null,
-    PreMatchRates? PreMatch = null);
+    PreMatchRates? PreMatch = null,
+    double? FeedAgeSeconds = null);
 
 /// <summary>
 /// Expected goals for each side over the whole match, as produced by the pre-match model.
@@ -86,6 +90,8 @@ public record ModelDiagnostics(
 /// Response of <c>POST /api/analyze</c>. The first four fields are the contract from the spec;
 /// the rest are additive detail the UI renders alongside them.
 /// </summary>
+/// <param name="Timing">Whether to take a live price now or wait, and why. Null pre-match and on a
+/// SKIP, where there is nothing to time.</param>
 public record AnalyzeResponse(
     EdgeResult Edge,
     StakeRecommendation Stake,
@@ -95,4 +101,5 @@ public record AnalyzeResponse(
     double Overround,
     ModelDiagnostics? Model,
     string Disclaimer,
-    ReferenceLine? Reference = null);
+    ReferenceLine? Reference = null,
+    TimingAdvice? Timing = null);

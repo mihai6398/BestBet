@@ -25,6 +25,12 @@ namespace BestBet.Domain;
 /// usual amount when it has not — and measure the rate per minute actually played. Off, the match
 /// ends at 90 with the spec's fixed five minutes after 85.</param>
 /// <param name="RedCards">Lower the rate of a side playing a man down and raise its opponent's.</param>
+/// <param name="TimeProfile">Weigh the minutes by when in the match they fall: goals come slower at the
+/// start and faster at the end, so the opening minutes' rate is read up and the closing minutes are
+/// run at more than an average minute. See <c>MatchTempo</c>.</param>
+/// <param name="RateUncertainty">Treat the rate as an estimate with a spread rather than a known
+/// fact, which fattens both tails of the goal count. Off, every goal line is priced as if the model
+/// knew the rate exactly — the assumption that makes "at most three more goals" look safer than it is.</param>
 public record PaceSettings(
     bool Shrink = true,
     bool ScoreState = true,
@@ -33,10 +39,19 @@ public record PaceSettings(
     double? RecentXgAway = null,
     double RecencyWeight = 0.5,
     bool Stoppage = true,
-    bool RedCards = true)
+    bool RedCards = true,
+    bool TimeProfile = true,
+    bool RateUncertainty = true)
 {
     /// <summary>The spec's original behaviour: the raw rate, extrapolated flat.</summary>
-    public static readonly PaceSettings Flat = new(Shrink: false, ScoreState: false, Stoppage: false, RedCards: false);
+    public static readonly PaceSettings Flat = new(
+        Shrink: false, ScoreState: false, Stoppage: false, RedCards: false, TimeProfile: false, RateUncertainty: false);
+
+    /// <summary>True when every correction is off, which is what "the spec's model" means.</summary>
+    public bool IsFlat => this is
+    {
+        Shrink: false, ScoreState: false, Stoppage: false, RedCards: false, TimeProfile: false, RateUncertainty: false,
+    };
 
     /// <summary>Everything on, with no recent window supplied.</summary>
     public static readonly PaceSettings Default = new();

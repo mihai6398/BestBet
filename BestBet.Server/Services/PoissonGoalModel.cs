@@ -63,17 +63,61 @@ public static class PoissonGoalModel
 
         // Truncation is driven by the COMBINED rate, not the larger of the two: the convolution that
         // produces total goals drops every pair whose sum overflows the table, so the tail that has to
-        // be negligible is the tail of the total.
-        var maxGoals = ChooseTruncation(expectedRemainingHome + expectedRemainingAway);
+        // be negligible is the tail of the total. A spread rate widens that tail, so its variance is
+        // what the table is sized by.
+        var expectedTotal = expectedRemainingHome + expectedRemainingAway;
+        var variance = adjustment.RateShape is { } shape
+            ? expectedTotal + (expectedRemainingHome * expectedRemainingHome
+                               + expectedRemainingAway * expectedRemainingAway) / shape
+            : expectedTotal;
+        var maxGoals = ChooseTruncation(expectedTotal, variance);
 
         return new GoalDistribution(
             remainingMinutes,
             expectedRemainingHome,
             expectedRemainingAway,
-            PoissonPmfTable(expectedRemainingHome, maxGoals),
-            PoissonPmfTable(expectedRemainingAway, maxGoals),
+            GoalTable(expectedRemainingHome, adjustment.RateShape, maxGoals),
+            GoalTable(expectedRemainingAway, adjustment.RateShape, maxGoals),
             state.CurrentGoalsHome,
             state.CurrentGoalsAway);
+    }
+
+    /// <summary>The Poisson table, or the negative binomial one when the rate carries a spread.</summary>
+    private static double[] GoalTable(double lambda, double? shape, int maxGoals)
+        => shape is { } r ? NegativeBinomialPmfTable(lambda, r, maxGoals) : PoissonPmfTable(lambda, maxGoals);
+
+    /// <summary>
+    /// P(exactly k) for k = 0..<paramref name="maxGoals"/> when the goals are Poisson but their mean
+    /// is itself uncertain: gamma-distributed around <paramref name="mean"/> with the given shape.
+    /// </summary>
+    /// <remarks>
+    /// That mixture is the negative binomial. Same mean as the Poisson it replaces, variance
+    /// <c>mean + mean² / shape</c> — more mass at zero and more in the tail, taken from the middle.
+    /// Built term by term like the Poisson table, for the same reason.
+    /// </remarks>
+    public static double[] NegativeBinomialPmfTable(double mean, double shape, int maxGoals)
+    {
+        if (mean < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(mean), mean, "The expected number of goals cannot be negative.");
+        }
+
+        if (!(shape > 0) || double.IsInfinity(shape))
+        {
+            throw new ArgumentOutOfRangeException(nameof(shape), shape, "The shape of the spread must be a positive number.");
+        }
+
+        var table = new double[maxGoals + 1];
+        var failure = mean / (shape + mean);
+        var p = Math.Pow(shape / (shape + mean), shape);
+
+        for (var k = 0; k <= maxGoals; k++)
+        {
+            table[k] = p;
+            p *= (shape + k) / (k + 1) * failure;
+        }
+
+        return table;
     }
 
     /// <summary>
@@ -157,9 +201,11 @@ public static class PoissonGoalModel
     /// typical of a late-match extrapolation the standard-deviation term is tiny, and a short table
     /// would leave enough mass outside it to show up in a probability quoted to four decimals.
     /// </summary>
-    private static int ChooseTruncation(double totalLambda)
+    private static int ChooseTruncation(double totalLambda) => ChooseTruncation(totalLambda, totalLambda);
+
+    private static int ChooseTruncation(double totalLambda, double variance)
     {
-        var suggested = (int)Math.Ceiling(totalLambda + 10.0 * Math.Sqrt(totalLambda)) + 1;
+        var suggested = (int)Math.Ceiling(totalLambda + 10.0 * Math.Sqrt(variance)) + 1;
         return Math.Clamp(suggested, 15, 40);
     }
 }

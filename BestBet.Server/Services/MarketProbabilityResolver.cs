@@ -72,13 +72,14 @@ public static class MarketProbabilityResolver
 
     private static MarketProbability NextGoal(MarketSelectionSpec selection, GoalDistribution distribution)
     {
-        // Two independent Poisson processes racing each other. Whichever fires first scores next, and
-        // the chance it is the home team is just its share of the combined rate.
+        // Two independent processes racing each other. Whichever fires first scores next, and the
+        // chance it is the home team is just its share of the combined rate. "No further goal" is read
+        // off the tables rather than as e^-λ, so it follows the spread when the rate carries one.
         var lambdaHome = distribution.ExpectedRemainingHome;
         var lambdaAway = distribution.ExpectedRemainingAway;
         var lambdaTotal = lambdaHome + lambdaAway;
 
-        var none = Math.Exp(-lambdaTotal);
+        var none = distribution.RemainingHomePmf[0] * distribution.RemainingAwayPmf[0];
         var anyGoal = 1.0 - none;
 
         var (home, away) = lambdaTotal <= 0
@@ -107,8 +108,8 @@ public static class MarketProbabilityResolver
     private static MarketProbability BothTeamsToScore(MarketSelectionSpec selection, GoalDistribution distribution)
     {
         // A team that has already scored is home and dry at probability 1 — no model needed.
-        var homeScores = distribution.CurrentGoalsHome > 0 ? 1.0 : 1.0 - Math.Exp(-distribution.ExpectedRemainingHome);
-        var awayScores = distribution.CurrentGoalsAway > 0 ? 1.0 : 1.0 - Math.Exp(-distribution.ExpectedRemainingAway);
+        var homeScores = distribution.CurrentGoalsHome > 0 ? 1.0 : 1.0 - distribution.RemainingHomePmf[0];
+        var awayScores = distribution.CurrentGoalsAway > 0 ? 1.0 : 1.0 - distribution.RemainingAwayPmf[0];
         var yes = homeScores * awayScores;
 
         var win = selection.Side switch

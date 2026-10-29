@@ -58,6 +58,20 @@ public class AnalysisService
             ? KellyStaking.NoStake("skip-below-threshold")
             : KellyStaking.RecommendStake(estimate.OwnProbability, market.DecimalOdds, request.Bankroll);
 
+        // Advice on top of the verdict, never in place of it: the verdict and the stake stay what
+        // they would have been, and the reader sees both.
+        var timing = isLive && diagnostics is not null
+            ? TimingAdvisor.Advise(
+                market.Kind,
+                ResolveSelection(request),
+                request.LiveState!,
+                request.Pace ?? PaceSettings.Default,
+                diagnostics.Pace,
+                edge,
+                verdict,
+                request.FeedAgeSeconds)
+            : null;
+
         return new AnalyzeResponse(
             edge,
             stake,
@@ -67,7 +81,8 @@ public class AnalysisService
             OddsMath.Overround(market.DecimalOdds, market.SiblingOdds),
             diagnostics,
             Disclaimer,
-            reference);
+            reference,
+            timing);
     }
 
     /// <summary>

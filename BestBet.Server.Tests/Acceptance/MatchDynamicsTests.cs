@@ -46,8 +46,8 @@ public class MatchDynamicsTests
     [Fact]
     public void The_pace_corrections_turn_that_same_position_into_a_skip()
     {
-        // On the spec's clock, so this pins what the rate corrections do on their own.
-        var response = _service.Analyze(Over65(new PaceSettings(Stoppage: false, RedCards: false)));
+        // Shrinkage and score state on the spec's clock, so this pins what those two do on their own.
+        var response = _service.Analyze(Over65(Rates()));
 
         Assert.Equal(0.4755, response.Edge.OwnProbability, 4);
         Assert.Equal(-2.45, response.Edge.EdgePercentagePoints, 2);
@@ -64,12 +64,28 @@ public class MatchDynamicsTests
         // nearly seven points on the Over — which is why the clock is worth getting right, and why
         // the old clock leant towards the Under on every match it priced. Still under the 5pp a live
         // bet needs: the 26.5pp the flat model claimed is not coming back.
-        var response = _service.Analyze(Over65(pace: null));
+        var response = _service.Analyze(Over65(new PaceSettings(TimeProfile: false, RateUncertainty: false)));
 
         Assert.Equal(61.5, response.Model!.RemainingMinutes, 10);
         Assert.Equal(0.5435, response.Edge.OwnProbability, 4);
         Assert.Equal(4.35, response.Edge.EdgePercentagePoints, 2);
         Assert.Equal(Verdict.Marginal, response.Verdict);
+    }
+
+    [Fact]
+    public void Counting_the_tempo_puts_more_of_the_over_back_and_the_timing_advice_holds_it()
+    {
+        // The minutes left here include a whole second half, the liveliest part of a match, and the
+        // 36 played were quieter than an average 36 — so the tempo raises the Over again, past the
+        // live threshold. That is the honest output of a correction that is right on average, and it
+        // is exactly the position the timing advice exists for: a pace of 5.95 xG per ninety is the
+        // thing the shrinkage guessed at, and a bet that needs it to hold is a bet on the guess.
+        var response = _service.Analyze(Over65(pace: null));
+
+        Assert.Equal(0.5871, response.Edge.OwnProbability, 4);
+        Assert.Equal(Verdict.Bet, response.Verdict);
+        Assert.Equal(TimingAction.Wait, response.Timing!.Action);
+        Assert.Equal(TimingAdvisor.HotStart, Assert.Single(response.Timing.Reasons).Code);
     }
 
     [Fact]
@@ -100,10 +116,12 @@ public class MatchDynamicsTests
     {
         var pace = _service.Analyze(Over65(pace: null)).Model!.Pace;
 
-        Assert.Equal(3, pace.Steps.Count);
+        Assert.Equal(5, pace.Steps.Count);
         Assert.Contains(pace.Steps, s => s.Contains("league-average"));
         Assert.Contains(pace.Steps, s => s.Contains("leads by 2"));
+        Assert.Contains(pace.Steps, s => s.Contains("Tempo counted"));
         Assert.Contains(pace.Steps, s => s.Contains("Stoppage counted: 61.5 minutes left rather than 54"));
+        Assert.Contains(pace.Steps, s => s.Contains("an estimate, not a fact"));
     }
 
     // --- The caveat that used to read backwards -----------------------------
@@ -240,6 +258,8 @@ public class MatchDynamicsTests
         var settings = new PaceSettings(
             Shrink: false,
             ScoreState: false,
+            TimeProfile: false,
+            RateUncertainty: false,
             RecentWindowMinutes: 15,
             RecentXgHome: 0.10,
             RecentXgAway: 0.05);
@@ -257,6 +277,8 @@ public class MatchDynamicsTests
         var settings = new PaceSettings(
             Shrink: false,
             ScoreState: false,
+            TimeProfile: false,
+            RateUncertainty: false,
             RecentWindowMinutes: 15,
             RecentXgHome: 0.45,
             RecentXgAway: 0.30);
@@ -276,6 +298,8 @@ public class MatchDynamicsTests
         var settings = new PaceSettings(
             Shrink: false,
             ScoreState: false,
+            TimeProfile: false,
+            RateUncertainty: false,
             RecentWindowMinutes: 15,
             RecentXgHome: 0.10,
             RecentXgAway: 0.05,
@@ -314,7 +338,8 @@ public class MatchDynamicsTests
     {
         // Half a window is not data. Using it with a missing side defaulted to zero would invent a
         // collapse in scoring that nobody reported.
-        var settings = new PaceSettings(Shrink: false, ScoreState: false, RecentWindowMinutes: 15);
+        var settings = new PaceSettings(
+            Shrink: false, ScoreState: false, TimeProfile: false, RateUncertainty: false, RecentWindowMinutes: 15);
         var pace = PaceModel.Adjust(new LiveMatchState(60, 2.0, 0.5, 0, 0, false), settings);
 
         Assert.Equal(pace.RawRateHome, pace.AdjustedRateHome, 12);
@@ -367,8 +392,12 @@ public class MatchDynamicsTests
     }
 
     // Each of these switches on one correction and nothing else, so a test of it measures that
-    // correction alone — stoppage changes the minutes every rate is measured in.
-    private static PaceSettings Shrinkage() => new(Shrink: true, ScoreState: false, Stoppage: false, RedCards: false);
+    // correction alone — stoppage changes the minutes every rate is measured in, and the tempo what
+    // each of them is worth.
+    private static PaceSettings Shrinkage() => PaceSettings.Flat with { Shrink = true };
 
-    private static PaceSettings ScoreState() => new(Shrink: false, ScoreState: true, Stoppage: false, RedCards: false);
+    private static PaceSettings ScoreState() => PaceSettings.Flat with { ScoreState = true };
+
+    /// <summary>The two corrections the Barcelona case was first fixed with, on the spec's clock.</summary>
+    private static PaceSettings Rates() => PaceSettings.Flat with { Shrink = true, ScoreState = true };
 }

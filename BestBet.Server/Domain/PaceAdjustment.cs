@@ -23,6 +23,11 @@ namespace BestBet.Domain;
 /// <param name="PriorFromPreMatch">True when those came from this match's pre-match model rather than
 /// from the league average. The two read very differently: one says "a typical match", the other
 /// says "what these two teams usually produce".</param>
+/// <param name="RateShape">How sure the model is of the rates, as the shape of the spread around them:
+/// the goal count is negative binomial with this shape instead of Poisson. Larger is surer; null means
+/// the rates are taken as exact, the plain Poisson.</param>
+/// <param name="EvidenceWeight">Share of the rate that came from this match rather than from the
+/// prior, 0..1. One when shrinkage did not run, because then nothing else went into it.</param>
 public record PaceAdjustment(
     double RawRateHome,
     double RawRateAway,
@@ -37,7 +42,9 @@ public record PaceAdjustment(
     double RemainingMinutes,
     double? PriorGoalsHome = null,
     double? PriorGoalsAway = null,
-    bool PriorFromPreMatch = false)
+    bool PriorFromPreMatch = false,
+    double? RateShape = null,
+    double EvidenceWeight = 1.0)
 {
     /// <summary>Combined raw rate, per minute.</summary>
     public double RawRateTotal => RawRateHome + RawRateAway;

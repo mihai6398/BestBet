@@ -63,7 +63,7 @@ public static class ProviderLiveState
     {
         var pace = requested ?? PaceSettings.Default;
 
-        if (pace is { Shrink: false, ScoreState: false, Stoppage: false, RedCards: false })
+        if (pace.IsFlat)
         {
             return pace;
         }
